@@ -79,6 +79,13 @@ public class InventoryService {
 				""").param("qty", qty).param("id", productId).update());
 	}
 
+	/** Those of {@code productIds} whose stock is at or below {@code threshold} (no inventory row counts as 0). */
+	@Transactional(readOnly = true)
+	public List<Long> productIdsWithStockAtMost(Collection<Long> productIds, int threshold) {
+		Map<Long, Integer> stock = availableQuantities(productIds);
+		return productIds.stream().filter(id -> stock.getOrDefault(id, 0) <= threshold).toList();
+	}
+
 	/** Sets the absolute stock level (admin adjustments, tests). */
 	@Transactional
 	public void setStock(Long productId, int quantity) {

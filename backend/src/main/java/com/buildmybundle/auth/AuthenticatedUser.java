@@ -4,6 +4,8 @@ import java.io.Serial;
 import java.util.Collection;
 import java.util.Set;
 
+import com.buildmybundle.shared.audit.AuditLog;
+
 import org.springframework.security.core.CredentialsContainer;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -14,7 +16,7 @@ import org.springframework.security.core.userdetails.UserDetails;
  * obtain the current user with {@code @AuthenticationPrincipal AuthenticatedUser user}.
  * Deliberately a small immutable snapshot (not the JPA entity) because it is serialized into the session store.
  */
-public final class AuthenticatedUser implements UserDetails, CredentialsContainer {
+public final class AuthenticatedUser implements UserDetails, CredentialsContainer, AuditLog.Actor {
 
 	@Serial
 	private static final long serialVersionUID = 1L;

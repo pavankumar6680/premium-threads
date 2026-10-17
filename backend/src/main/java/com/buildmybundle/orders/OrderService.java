@@ -160,7 +160,8 @@ public class OrderService {
 		return readTx.execute(status -> orders.findByUserIdAndIdempotencyKey(userId, idempotencyKey).map(this::view));
 	}
 
-	private OrderView view(CustomerOrder order) {
+	/** Customer-facing view of an order (also embedded in the staff view). */
+	OrderView view(CustomerOrder order) {
 		Map<Long, ProductSummary> current = catalog
 			.findByIds(order.getItems().stream().map(OrderItem::getProductId).toList());
 		List<Item> items = order.getItems()

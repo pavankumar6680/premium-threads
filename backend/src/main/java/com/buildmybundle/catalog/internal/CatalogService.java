@@ -112,6 +112,10 @@ public class CatalogService {
 			.toList();
 	}
 
+	public Map<String, Set<String>> attributeKeysByCategory() {
+		return queries.attributeKeysByCategory();
+	}
+
 	public Set<String> brands() {
 		return new LinkedHashSet<>(queries.activeBrands());
 	}

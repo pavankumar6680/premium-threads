@@ -37,10 +37,19 @@ public class GoalTemplates {
 	}
 
 	public List<Template> findAllActive() {
+		return load(true);
+	}
+
+	/** Every template, including inactive ones (administration). */
+	public List<Template> findAll() {
+		return load(false);
+	}
+
+	private List<Template> load(boolean activeOnly) {
 		List<Row> rows = jdbc.sql("""
 				SELECT id, slug, title, tagline, description, default_budget, context_tag
-				FROM goal_templates WHERE active ORDER BY sort_order, title
-				""").query((rs, n) -> new Row(rs.getLong("id"), rs.getString("slug"), rs.getString("title"),
+				FROM goal_templates %s ORDER BY sort_order, title
+				""".formatted(activeOnly ? "WHERE active" : "")).query((rs, n) -> new Row(rs.getLong("id"), rs.getString("slug"), rs.getString("title"),
 				rs.getString("tagline"), rs.getString("description"), rs.getBigDecimal("default_budget"),
 				rs.getString("context_tag")))
 			.list();

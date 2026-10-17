@@ -315,6 +315,18 @@ public class ProductQueries {
 		return result;
 	}
 
+	/** Category slug → attribute keys defined for it. */
+	public Map<String, Set<String>> attributeKeysByCategory() {
+		Map<String, Set<String>> result = new HashMap<>();
+		jdbc.sql("""
+				SELECT c.slug, ad.key FROM attribute_definitions ad JOIN categories c ON c.id = ad.category_id
+				ORDER BY c.slug, ad.sort_order
+				""").query(rs -> {
+			result.computeIfAbsent(rs.getString("slug"), k -> new java.util.LinkedHashSet<>()).add(rs.getString("key"));
+		});
+		return result;
+	}
+
 	public List<String> activeBrands() {
 		return jdbc.sql("SELECT DISTINCT brand FROM products WHERE status = 'ACTIVE' ORDER BY brand")
 			.query(String.class)

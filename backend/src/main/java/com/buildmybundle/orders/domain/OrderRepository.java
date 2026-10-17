@@ -19,6 +19,17 @@ public interface OrderRepository extends JpaRepository<CustomerOrder, Long> {
 
 	Page<CustomerOrder> findByUserIdOrderByCreatedAtDescIdDesc(Long userId, Pageable pageable);
 
+	Page<CustomerOrder> findAllByOrderByCreatedAtDescIdDesc(Pageable pageable);
+
+	Page<CustomerOrder> findByStatusOrderByCreatedAtDescIdDesc(OrderStatus status, Pageable pageable);
+
+	Optional<CustomerOrder> findByOrderNumber(String orderNumber);
+
+	/** Row lock for staff status changes (same reason as {@link #findForUpdate}). */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select o from CustomerOrder o where o.id = :id")
+	Optional<CustomerOrder> findByIdForUpdate(@Param("id") Long id);
+
 	/** Row lock so concurrent cancellations of the same order cannot both restock. */
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select o from CustomerOrder o where o.id = :id and o.userId = :userId")

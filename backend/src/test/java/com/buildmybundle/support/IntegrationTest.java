@@ -18,7 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * PostgreSQL, MockMvc through the security filter chain. Tests that change stock or prices create their
  * own products so they never depend on each other.
  */
-@SpringBootTest
+@SpringBootTest(properties = "app.rate-limit.enabled=false") // RateLimitIntegrationTest covers limiting
 @AutoConfigureMockMvc
 public abstract class IntegrationTest {
 
@@ -43,6 +43,23 @@ public abstract class IntegrationTest {
 					"{\"email\":\"user-" + UUID.randomUUID() + "@example.com\",\"password\":\"Passw0rd!\",\"fullName\":\"Test Customer\"}")
 			.andExpect(status().isCreated());
 		return browser;
+	}
+
+	/** Registers a fresh user with the ADMIN role and returns a browser session signed in as that user. */
+	protected BrowserSession newAdmin() throws Exception {
+		String email = "admin-" + UUID.randomUUID() + "@example.com";
+		new BrowserSession(mockMvc)
+			.postJson("/api/v1/auth/register", "{\"email\":\"" + email + "\",\"password\":\"Passw0rd!\",\"fullName\":\"Test Admin\"}")
+			.andExpect(status().isCreated());
+		jdbc.sql("""
+				INSERT INTO user_roles (user_id, role_id)
+				SELECT u.id, r.id FROM users u, roles r WHERE u.email = :email AND r.name = 'ADMIN'
+				""").param("email", email).update();
+		// roles are read at sign-in, so sign in again in a fresh session
+		BrowserSession admin = new BrowserSession(mockMvc);
+		admin.postJson("/api/v1/auth/login", "{\"email\":\"" + email + "\",\"password\":\"Passw0rd!\"}")
+			.andExpect(status().isOk());
+		return admin;
 	}
 
 	/**
@@ -73,6 +90,19 @@ public abstract class IntegrationTest {
 			.param("qty", stock)
 			.update();
 		return id;
+	}
+
+	/** Puts {@code quantity} units in the customer's cart and checks out; returns the order id. */
+	protected long placeOrder(BrowserSession customer, long productId, int quantity) throws Exception {
+		customer.postJson("/api/v1/cart/items", "{\"productId\":" + productId + ",\"quantity\":" + quantity + "}")
+			.andExpect(status().is2xxSuccessful());
+		long addressId = BrowserSession.longField(
+				customer.postJson("/api/v1/me/addresses", addressJson("Test Customer", true)).andExpect(status().isCreated()),
+				"$.id");
+		return BrowserSession.longField(customer
+			.postJson("/api/v1/checkout", "{\"addressId\":" + addressId + "}",
+					java.util.Map.of("Idempotency-Key", UUID.randomUUID().toString()))
+			.andExpect(status().isCreated()), "$.id");
 	}
 
 	protected int stockOf(long productId) {

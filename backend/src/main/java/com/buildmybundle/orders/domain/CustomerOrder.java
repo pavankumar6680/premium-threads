@@ -137,6 +137,28 @@ public class CustomerOrder {
 		cancelledAt = Instant.now();
 	}
 
+	/** Staff action: PAID → SHIPPED. */
+	public void ship() {
+		if (status != OrderStatus.PAID) {
+			throw invalidTransition(OrderStatus.SHIPPED);
+		}
+		status = OrderStatus.SHIPPED;
+	}
+
+	/** Staff action: SHIPPED → DELIVERED. */
+	public void deliver() {
+		if (status != OrderStatus.SHIPPED) {
+			throw invalidTransition(OrderStatus.DELIVERED);
+		}
+		status = OrderStatus.DELIVERED;
+	}
+
+	private ApiException invalidTransition(OrderStatus target) {
+		return ApiException.conflict("INVALID_ORDER_TRANSITION",
+				"An order that is " + status.name().toLowerCase() + " cannot be marked " + target.name().toLowerCase() + ".")
+			.with("status", status.name());
+	}
+
 	/** Product id → quantity, e.g. to reserve or release stock. */
 	public Map<Long, Integer> quantities() {
 		return items.stream().collect(Collectors.toMap(OrderItem::getProductId, OrderItem::getQuantity, Integer::sum));

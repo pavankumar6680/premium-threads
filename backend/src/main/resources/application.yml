@@ -55,6 +55,14 @@ app:
   ai:
     enabled: ${AI_ENABLED:false}
     timeout: ${AI_TIMEOUT:60s}
+  # Requests per client per minute (Bucket4j). Clients are signed-in users, or IPs when anonymous.
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    auth: ${RATE_LIMIT_AUTH:10}
+    ai: ${RATE_LIMIT_AI:10}
+    engine: ${RATE_LIMIT_ENGINE:30}
+    checkout: ${RATE_LIMIT_CHECKOUT:10}
+    general: ${RATE_LIMIT_GENERAL:300}
   session:
     # BMB_SESSION cookie: HttpOnly, SameSite=Lax (see SessionCookieConfig). Set true behind HTTPS.
     secure-cookie: ${COOKIE_SECURE:false}

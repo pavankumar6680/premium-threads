@@ -49,6 +49,11 @@ public class ProductCatalog {
 		return catalog.activeFactsInCategories(categoryIds);
 	}
 
+	/** Category slug → the attribute keys defined for that category. */
+	public Map<String, Set<String>> attributeKeysByCategory() {
+		return catalog.attributeKeysByCategory();
+	}
+
 	/** Brands of active products. */
 	public Set<String> brands() {
 		return catalog.brands();
