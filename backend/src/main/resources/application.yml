@@ -1,0 +1,67 @@
+spring:
+  application:
+    name: buildmybundle
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/buildmybundle}
+    username: ${DB_USERNAME:bmb}
+    password: ${DB_PASSWORD:bmb}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  flyway:
+    enabled: true
+    # db/seed holds the demo catalog; drop it from the list to deploy an empty store
+    locations: ${FLYWAY_LOCATIONS:classpath:db/migration,classpath:db/seed}
+  session:
+    jdbc:
+      # Tables are created by Flyway (V2__spring_session.sql)
+      initialize-schema: never
+  mvc:
+    problemdetails:
+      enabled: true
+  ai:
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      chat:
+        model: ${AI_MODEL:llama3.2:3b}
+        temperature: 0.2
+    # fail fast: the app falls back to its rules instead of waiting on retries
+    retry:
+      max-attempts: 1
+
+server:
+  port: ${PORT:8080}
+  servlet:
+    session:
+      timeout: 8h
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+app:
+  # Optional local AI through Ollama. Off by default: every feature works without it.
+  ai:
+    enabled: ${AI_ENABLED:false}
+    timeout: ${AI_TIMEOUT:60s}
+  session:
+    # BMB_SESSION cookie: HttpOnly, SameSite=Lax (see SessionCookieConfig). Set true behind HTTPS.
+    secure-cookie: ${COOKIE_SECURE:false}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  # Optional bootstrap administrator, created on startup if both values are set and the account does not exist.
+  admin:
+    email: ${ADMIN_EMAIL:}
+    password: ${ADMIN_PASSWORD:}
+    full-name: ${ADMIN_FULL_NAME:Store Administrator}

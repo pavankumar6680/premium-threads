@@ -1,0 +1,9 @@
+# Local development defaults. Never enable this profile in a deployed environment.
+app:
+  admin:
+    email: ${ADMIN_EMAIL:admin@buildmybundle.local}
+    password: ${ADMIN_PASSWORD:Admin12345}
+
+logging:
+  level:
+    com.buildmybundle: DEBUG

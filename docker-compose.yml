@@ -1,0 +1,63 @@
+# Full stack:            docker compose up --build        -> http://localhost:3000
+# Database only (dev):   docker compose up -d postgres    -> then run backend + frontend locally
+# With local AI:         AI_ENABLED=true docker compose --profile ai up --build
+#                        then once: docker compose exec ollama ollama pull llama3.2:3b
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: buildmybundle
+      POSTGRES_USER: ${DB_USERNAME:-bmb}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-bmb}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://postgres:5432/buildmybundle
+      DB_USERNAME: ${DB_USERNAME:-bmb}
+      DB_PASSWORD: ${DB_PASSWORD:-bmb}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      # Plain HTTP on localhost; set to true when served over HTTPS.
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
+      # Optional AI (see the "ai" profile below); off unless AI_ENABLED=true
+      AI_ENABLED: ${AI_ENABLED:-false}
+      AI_MODEL: ${AI_MODEL:-llama3.2:3b}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+  # Local language model server, only started with --profile ai
+  ollama:
+    image: ollama/ollama
+    profiles: ["ai"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+
+volumes:
+  pgdata:
+  ollama:
