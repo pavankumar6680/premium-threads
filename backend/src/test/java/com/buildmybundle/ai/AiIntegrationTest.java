@@ -45,27 +45,30 @@ class AiIntegrationTest extends IntegrationTest {
 	}
 
 	@Test
-	void mergesTheModelsValidatedReadingWithTheRules() throws Exception {
+	void mergesOnlyTheModelsGroundedReadingWithTheRules() throws Exception {
 		model.responder = (system, user) -> Optional.of("""
-				{"templateSlug":"gaming-setup","budget":2000,"quality":"BALANCED",
-				 "categories":[{"slug":"monitors","kind":"OWNED"},{"slug":"rgb-fans","kind":"REQUIRED"},{"slug":"webcams","kind":"OPTIONAL"}],
-				 "usageTags":["streaming"],"preferredBrands":["corvex","Razer"],
+				{"templateSlug":"gaming-setup","budget":2000,"quality":"PREMIUM",
+				 "categories":[{"slug":"monitors","kind":"OWNED"},{"slug":"rgb-fans","kind":"REQUIRED"},
+				               {"slug":"webcams","kind":"REQUIRED"},{"slug":"keyboards","kind":"OWNED"}],
+				 "usageTags":["streaming"],"preferredBrands":["corvex"],
 				 "clarifyingQuestions":["Do you also need a desk?"]}""");
 
 		new BrowserSession(mockMvc)
-			.postJson("/api/v1/goals/analyze", "{\"text\":\"Something for streaming my games, about 2000 dollars. Got a monitor from my brother.\"}")
+			.postJson("/api/v1/goals/analyze",
+					"{\"text\":\"Something to play competitive shooters on, about 2000 dollars. My old monitor still works.\"}")
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.source").value("AI"))
-			.andExpect(jsonPath("$.templateSlug").value("gaming-setup"))
+			.andExpect(jsonPath("$.templateSlug").value("gaming-setup")) // the rules found no template
 			.andExpect(jsonPath("$.budget").value(2000.0))
+			.andExpect(jsonPath("$.quality").value("BALANCED")) // the shopper never asked for premium
 			.andExpect(jsonPath("$.items[?(@.categorySlug == 'monitors')].kind").value("OWNED"))
-			.andExpect(jsonPath("$.items[?(@.categorySlug == 'webcams')].kind").value("OPTIONAL"))
+			.andExpect(jsonPath("$.items[?(@.categorySlug == 'keyboards')].kind",
+					org.hamcrest.Matchers.not(hasItem("OWNED")))) // never mentioned
 			.andExpect(jsonPath("$.items[*].categorySlug", org.hamcrest.Matchers.not(hasItem("rgb-fans"))))
-			.andExpect(jsonPath("$.preferredBrands[0]").value("Corvex"))
-			.andExpect(jsonPath("$.preferredBrands.length()").value(1))
-			.andExpect(jsonPath("$.clarifications", hasItem("Do you also need a desk?")));
+			.andExpect(jsonPath("$.preferredBrands.length()").value(0))
+			.andExpect(jsonPath("$.clarifications", org.hamcrest.Matchers.not(hasItem("Do you also need a desk?"))));
 		// the model is told the store's real vocabulary
-		assertThat(model.prompts.getFirst()).contains("gaming-setup", "monitor-arms", "Corvex");
+		assertThat(model.prompts.getFirst()).contains("gaming-setup", "monitor-arms");
 	}
 
 	@Test

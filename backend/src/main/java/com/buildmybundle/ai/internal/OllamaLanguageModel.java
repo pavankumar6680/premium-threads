@@ -39,6 +39,7 @@ class OllamaLanguageModel implements LanguageModel, DisposableBean {
 	private static final Logger log = LoggerFactory.getLogger(OllamaLanguageModel.class);
 	private static final Duration STATUS_TTL = Duration.ofSeconds(30);
 	private static final Duration PROBE_TIMEOUT = Duration.ofMillis(1500);
+	private static final int MAX_OUTPUT_TOKENS = 350;
 
 	private final AiProperties properties;
 	private final ObjectProvider<ChatModel> chatModel;
@@ -99,7 +100,11 @@ class OllamaLanguageModel implements LanguageModel, DisposableBean {
 		if (chat == null || !status().available()) {
 			return Optional.empty();
 		}
+		// Per-request options replace the configured defaults, so the model must be set here explicitly
+		// (otherwise Spring AI falls back to its built-in default model).
 		OllamaChatOptions.Builder builder = OllamaChatOptions.builder();
+		builder.model(model);
+		builder.numPredict(MAX_OUTPUT_TOKENS); // bounded answers keep CPU inference time predictable
 		if (format == Format.JSON) {
 			builder.format("json"); // Ollama's JSON mode guarantees syntactically valid JSON
 		}

@@ -53,7 +53,8 @@ public final class RuleBasedGoalInterpreter {
 	/** Clauses are split at sentence ends and at words that start a new intent ("but I need..."). */
 	private static final Pattern CLAUSE_SPLIT = Pattern.compile("[.;!?]|\\b(?:but|however|need|needs|want|wants|looking for)\\b");
 	private static final Pattern OWNED_CLAUSE = Pattern
-		.compile("\\b(?:already (?:have|own|got)|(?:i|we) (?:have|own) (?:a|an|my|our|some)|i've got|i have got)\\b");
+		.compile("\\b(?:already (?:have|own|got)|(?:i|we) (?:have|own) (?:a|an|my|our|some)|i've got|i have got"
+				+ "|got (?:a|an|my|our|his|her|their)|gave me (?:a|an|my|his|her|their))\\b");
 
 	private static final Pattern BUDGET_QUALITY = Pattern.compile(
 			"\\b(?:cheap|cheapest|affordable|inexpensive|low[- ]cost|on a (?:tight )?budget|budget[- ]friendly|bargain)\\b");

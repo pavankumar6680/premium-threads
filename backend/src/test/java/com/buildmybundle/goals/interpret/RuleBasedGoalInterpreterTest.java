@@ -56,6 +56,16 @@ class RuleBasedGoalInterpreterTest {
 	}
 
 	@Test
+	void recognisesHandMeDownsAsOwned() {
+		assertThat(interpret("Got my brother's old monitor, need a gaming PC").items())
+			.extracting(GoalAnalysis.Item::categorySlug, GoalAnalysis.Item::kind)
+			.contains(tuple("monitors", RequirementKind.OWNED));
+		assertThat(interpret("My dad gave me his desk, I need a chair").items())
+			.extracting(GoalAnalysis.Item::categorySlug, GoalAnalysis.Item::kind)
+			.contains(tuple("desks", RequirementKind.OWNED), tuple("chairs", RequirementKind.REQUIRED));
+	}
+
+	@Test
 	void resolvesAmbiguousWordsInFavourOfTheMatchedTemplate() {
 		GoalAnalysis analysis = interpret("Photography setup with studio lighting, max $3k");
 

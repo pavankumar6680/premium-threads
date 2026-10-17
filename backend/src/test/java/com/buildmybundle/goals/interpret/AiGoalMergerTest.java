@@ -41,27 +41,31 @@ class AiGoalMergerTest {
 	}
 
 	@Test
-	void acceptsOnlyValuesThatExistInTheStore() {
+	void ignoresEverythingTheShopperDidNotSay() {
 		String text = "I stream while gaming and need a new setup, budget 1500";
 		AiGoal ai = AiGoalMerger.parse("""
 				{"templateSlug":"space-station","quality":"PREMIUM",
-				 "categories":[{"slug":"rgb-fans","kind":"REQUIRED"},{"slug":"webcams","kind":"REQUIRED"},{"slug":"desks","kind":"SOMETIMES"}],
-				 "usageTags":["streaming","teleportation"],"preferredBrands":["corvex","Razer"]}""").orElseThrow();
+				 "categories":[{"slug":"rgb-fans","kind":"REQUIRED"},{"slug":"webcams","kind":"REQUIRED"},
+				               {"slug":"desks","kind":"OWNED"}],
+				 "usageTags":["streaming","teleportation"],"preferredBrands":["corvex","Razer"],
+				 "clarifyingQuestions":["Do you need a microphone?"]}""").orElseThrow();
 
 		GoalAnalysis merged = AiGoalMerger.merge(rules(text), ai, text, VOCABULARY);
 
 		assertThat(merged.source()).isEqualTo("AI");
-		assertThat(merged.templateSlug()).isEqualTo("gaming-setup"); // the rules' match wins over an invented template
-		assertThat(merged.items()).extracting(GoalAnalysis.Item::categorySlug).contains("webcams")
-			.doesNotContain("rgb-fans", "desks");
+		assertThat(merged.templateSlug()).isEqualTo("gaming-setup"); // the rules' match wins
+		assertThat(merged.items()).extracting(GoalAnalysis.Item::categorySlug)
+			.doesNotContain("rgb-fans", "webcams", "desks"); // valid store categories, but never mentioned
 		assertThat(merged.usageTags()).contains("streaming").doesNotContain("teleportation");
-		assertThat(merged.preferredBrands()).containsExactly("Corvex"); // canonical spelling, unknown brand dropped
-		assertThat(merged.quality()).isEqualTo(Quality.PREMIUM);
+		assertThat(merged.preferredBrands()).isEmpty(); // Corvex exists, but the shopper did not ask for it
+		assertThat(merged.quality()).isEqualTo(Quality.BALANCED);
+		assertThat(merged.clarifications()).isEmpty(); // nothing essential is missing
 	}
 
 	@Test
 	void letsTheModelRecogniseOwnedItemsTheRulesMissed() {
-		String text = "Gaming rig please. Got a monitor from my brother, 2k to spend";
+		String text = "Gaming rig please. My old monitor still works fine, 2k to spend";
+		assertThat(rules(text).items()).extracting(GoalAnalysis.Item::kind).doesNotContain(RequirementKind.OWNED);
 		AiGoal ai = AiGoalMerger.parse("""
 				{"categories":[{"slug":"monitors","kind":"OWNED"}]}""").orElseThrow();
 
@@ -69,6 +73,20 @@ class AiGoalMergerTest {
 
 		assertThat(merged.items()).extracting(GoalAnalysis.Item::categorySlug, GoalAnalysis.Item::kind)
 			.contains(tuple("monitors", RequirementKind.OWNED), tuple("desktops", RequirementKind.REQUIRED));
+	}
+
+	@Test
+	void neverReadsRequestedProductsAsOwned() {
+		String text = "Home office for 1200. I need a desk, a chair and a monitor. My keyboard is fine";
+		AiGoal ai = AiGoalMerger.parse("""
+				{"categories":[{"slug":"desks","kind":"OWNED"},{"slug":"monitors","kind":"OWNED"},
+				               {"slug":"keyboards","kind":"OWNED"}]}""").orElseThrow();
+
+		GoalAnalysis merged = AiGoalMerger.merge(rules(text), ai, text, VOCABULARY);
+
+		assertThat(merged.items()).extracting(GoalAnalysis.Item::categorySlug, GoalAnalysis.Item::kind)
+			.contains(tuple("keyboards", RequirementKind.OWNED))
+			.doesNotContain(tuple("desks", RequirementKind.OWNED), tuple("monitors", RequirementKind.OWNED));
 	}
 
 	@Test

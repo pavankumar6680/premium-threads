@@ -15,18 +15,15 @@ import org.springframework.stereotype.Component;
 @Component
 public class AssistedGoalInterpreter implements GoalInterpreter {
 
+	/** Kept short on purpose: on a CPU, prompt length dominates the response time of a local model. */
 	static final String SYSTEM_PROMPT = """
-			You turn a shopper's request into JSON for an online store. Use ONLY values from the lists you are given;
-			never invent categories, brands, tags or templates. Answer with a single JSON object with these keys:
-			  "templateSlug": one template slug or null,
-			  "budget": the total budget as a number, or null if the shopper did not state one,
-			  "quality": "BUDGET", "BALANCED" or "PREMIUM",
-			  "categories": [{"slug": category slug, "kind": "REQUIRED" | "OPTIONAL" | "OWNED", "quantity": number}],
-			  "usageTags": [usage tags that match how the shopper will use the products],
-			  "preferredBrands": [brands the shopper asked for],
-			  "clarifyingQuestions": [at most 2 short questions, only if something essential is unclear]
-			Use "OWNED" for things the shopper already has, "REQUIRED" for things they need,
-			"OPTIONAL" for things they would like if the budget allows.""";
+			Read a shopper's request for an online store and answer with one JSON object:
+			{"templateSlug": the matching template slug or null,
+			 "budget": the total budget the shopper stated as a number, or null,
+			 "categories": [{"slug": category slug, "kind": "OWNED"}] for products the shopper says they already have,
+			 "usageTags": usage tags that describe how they will use the products,
+			 "clarifyingQuestions": [one short question only if the budget or the needed products are unclear]}
+			Use only slugs and tags from the lists. Do not guess: leave out anything the shopper did not say.""";
 
 	private final VocabularyLoader vocabulary;
 	private final LanguageModel languageModel;
@@ -54,20 +51,12 @@ public class AssistedGoalInterpreter implements GoalInterpreter {
 			.stream()
 			.map(t -> t.slug() + " (" + t.title() + ")")
 			.collect(Collectors.joining(", "));
-		String categories = vocab.categoryPhrases()
-			.entrySet()
-			.stream()
-			.map(e -> e.getKey() + " (" + String.join("/", e.getValue().subList(0, Math.min(3, e.getValue().size()))) + ")")
-			.collect(Collectors.joining(", "));
+		String categories = String.join(", ", vocab.categoryPhrases().keySet());
 		return """
-				Shopper's request:
-				\"\"\"%s\"\"\"
-
+				Request: "%s"
 				Templates: %s
 				Categories: %s
 				Usage tags: %s
-				Brands: %s
-				""".formatted(text.replace("\"\"\"", "\""), templates, categories, String.join(", ", vocab.tags()),
-				String.join(", ", vocab.brands()));
+				""".formatted(text.replace('"', '\''), templates, categories, String.join(", ", vocab.tags()));
 	}
 }
