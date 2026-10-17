@@ -274,7 +274,14 @@ Complexity is `O(K^C)` in the worst case; on the seed catalog, real goals explor
   - **Availability**: probed through `/api/tags` (cached 30 s, and the model must be installed).
   - **Hard timeout**: every call runs on a virtual thread with a timeout (`AI_TIMEOUT`, default 60 s); Spring AI retries are off.
   - **Failures**: any failure or timeout returns empty, so callers fall back. It is off unless `AI_ENABLED=true`.
-- **Goal interpretation**: `AssistedGoalInterpreter` runs the rules, then the model, and `AiGoalMerger` validates and merges. The rules' template, budget and explicit quality win. The model may add known categories, mark items as owned, add usage tags and brands from the store's lists, and ask up to two questions. A model budget is accepted only if the number is in the text. In the worst case, the result equals the rules-only result.
+- **Goal interpretation**: `AssistedGoalInterpreter` runs the rules, then the model, and `AiGoalMerger` validates and merges. A valid store value is not enough: in live tests llama3.2:3b added real but unrequested categories, brands and a premium preference. So the model contributes only what is grounded in the shopper's text or fills a gap the rules left:
+  - a template, only when the rules found none (e.g. "competitive shooters" → gaming setup);
+  - a budget, only if that number appears in the text;
+  - "already owned" for a category named in a sentence that is not a request ("my old monitor still works", but never "I need a desk…");
+  - usage tags offered by the chosen template;
+  - at most one question, only when the budget or the needed products are missing.
+
+  It cannot add categories, brands or a quality preference. In the worst case, the result equals the rules-only result. The prompt lists slugs only and output is capped at 350 tokens; on a CPU-only laptop this cut analysis from about 50 s to 10–35 s.
 - **Overviews**: `RunExplainer` sends the model only the run's facts: bundles, totals, budget shares, items, ratings, notes, or reasons, minimum cost and suggestions. `Grounding` rejects any answer containing a number that is not in the facts; small counts up to 10 are allowed. Accepted text is cached as an `AI_OVERVIEW` run message.
 - **The engine never uses AI**: products, prices, compatibility and per-item explanations stay deterministic.
 - **Tests**: the model is replaced by a scripted fake (`AiIntegrationTest`), so CI needs no Ollama.
