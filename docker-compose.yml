@@ -1,16 +1,38 @@
-# Full stack:            docker compose up --build        -> http://localhost:3000
-# Database only (dev):   docker compose up -d postgres    -> then run backend + frontend locally
-# With local AI:         AI_ENABLED=true docker compose --profile ai up --build
-#                        then once: docker compose exec ollama ollama pull llama3.2:3b
+# BuildMyBundle: production-style stack.
+#
+#   cp .env.example .env          # then set the passwords
+#   docker compose up -d --build  # -> http://localhost:3000 (HTTP_PORT)
+#
+# Database only, for local development:   docker compose up -d postgres
+# With local AI (CPU is fine, GPU faster): set AI_ENABLED=true in .env, then
+#   docker compose --profile ai up -d --build
+#   docker compose exec ollama ollama pull llama3.2:3b
+#
+# Only the web tier is reachable from the network. PostgreSQL and the API are bound to localhost for
+# administration (psql, Swagger UI) and can be unpublished entirely in production.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-hardening: &hardening
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  logging: *logging
+
 services:
   postgres:
+    <<: *hardening
     image: postgres:17-alpine
     environment:
       POSTGRES_DB: buildmybundle
       POSTGRES_USER: ${DB_USERNAME:-bmb}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-bmb}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env (see .env.example)}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -18,9 +40,13 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    shm_size: 128mb
+    mem_limit: 512m
 
   backend:
+    <<: *hardening
     build: ./backend
+    image: buildmybundle/backend:${APP_VERSION:-local}
     depends_on:
       postgres:
         condition: service_healthy
@@ -28,35 +54,50 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       DB_URL: jdbc:postgresql://postgres:5432/buildmybundle
       DB_USERNAME: ${DB_USERNAME:-bmb}
-      DB_PASSWORD: ${DB_PASSWORD:-bmb}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
-      # Plain HTTP on localhost; set to true when served over HTTPS.
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-10}
+      # Demo catalog on by default; set to classpath:db/migration for an empty store
+      FLYWAY_LOCATIONS: ${FLYWAY_LOCATIONS:-classpath:db/migration,classpath:db/seed}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?Set ADMIN_EMAIL in .env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      # true whenever the site is served over HTTPS
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
-      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
-      # Optional AI (see the "ai" profile below); off unless AI_ENABLED=true
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
       AI_ENABLED: ${AI_ENABLED:-false}
       AI_MODEL: ${AI_MODEL:-llama3.2:3b}
+      AI_TIMEOUT: ${AI_TIMEOUT:-60s}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
     ports:
-      - "8080:8080"
+      - "127.0.0.1:${API_PORT:-8080}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 1g
 
   frontend:
+    <<: *hardening
     build: ./frontend
+    image: buildmybundle/frontend:${APP_VERSION:-local}
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
-      - "3000:80"
+      - "${HTTP_PORT:-3000}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 128m
 
   # Local language model server, only started with --profile ai
   ollama:
-    image: ollama/ollama
+    <<: *hardening
+    image: ollama/ollama:${OLLAMA_VERSION:-latest}
     profiles: ["ai"]
-    ports:
-      - "11434:11434"
     volumes:
       - ollama:/root/.ollama
+    mem_limit: 6g
 
 volumes:
   pgdata:

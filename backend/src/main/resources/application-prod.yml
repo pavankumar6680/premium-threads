@@ -1,10 +1,32 @@
+# Production profile (the Docker image sets SPRING_PROFILES_ACTIVE=prod).
+
 logging:
+  # One JSON object per line (Elastic Common Schema), ready for any log collector
   structured:
     format:
       console: ecs
 
 server:
+  # The app runs behind nginx, which sets X-Forwarded-* (client IP for rate limiting, scheme for cookies)
   forward-headers-strategy: framework
+  # Finish in-flight requests on shutdown (rolling deploys, docker stop)
+  shutdown: graceful
+
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  datasource:
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      connection-timeout: 5000
+
+management:
+  endpoint:
+    health:
+      # /actuator/health/liveness and /readiness for container orchestrators; no internals in responses
+      probes:
+        enabled: true
+      show-details: never
 
 springdoc:
   swagger-ui:

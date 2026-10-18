@@ -5,10 +5,11 @@ accomplish ("set up a professional home office for $1,200") and BuildMyBundle as
 compatible bundle from the real catalog, optimized for their budget, which they can customize and buy in a
 single checkout.
 
-> Status: **Phases 1–6 complete**: store, goal-based shopping, the recommendation engine, the bundle
-> workspace and optional local AI (Ollama) for understanding goals and explaining results. See [Roadmap](#roadmap).
+> Status: **complete (phases 1–8)**: store, goal-based shopping, the recommendation engine, the bundle
+> workspace, optional local AI (Ollama), the store admin, end-to-end tests, CI and a production-style Docker
+> deployment. See [Roadmap](#roadmap) and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-## Features so far
+## Features
 
 - **Optional local AI (Ollama + Spring AI)**:
   - **Off by default**: everything works without it.
@@ -134,17 +135,22 @@ bundles page offers **Explain with AI**. Use `AI_MODEL` to pick another model an
 ### Option B: local development with Docker PostgreSQL
 
 ```bash
-docker compose up -d postgres
-cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+cp .env.example .env                 # set DB_PASSWORD (and the admin account)
+docker compose up -d postgres        # PostgreSQL on 127.0.0.1:5432
+cd backend && DB_PASSWORD=<same as .env> ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 cd frontend && npm run dev
 ```
 
 ### Option C: full stack in containers
 
 ```bash
-cp .env.example .env        # adjust credentials
-docker compose up --build   # app on http://localhost:3000, API docs on http://localhost:8080/swagger-ui.html
+cp .env.example .env        # set DB_PASSWORD, ADMIN_EMAIL and ADMIN_PASSWORD
+docker compose up -d --build
+docker compose ps           # wait for "healthy", then open http://localhost:3000
 ```
+
+Non-root, health-checked containers; nginx serves the app with security headers and proxies the API.
+HTTPS, backups, upgrades and scaling are covered in **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
 
 ## API documentation
 
@@ -170,6 +176,9 @@ cd frontend && npm run e2e     # end-to-end purchase + fulfilment in a real brow
 cd frontend && npm run build   # type-check + production build
 ```
 
+CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs all of the above plus the Docker image builds on
+every push and pull request.
+
 ## Project structure
 
 ```
@@ -189,7 +198,8 @@ buildmybundle/
 │   │   ├── recommendation/       branch-and-bound optimizer, tiers, explanations, runs
 │   │   ├── bundles/              recommended and customer bundles, workspace operations
 │   │   ├── ai/                   optional language model (Spring AI + Ollama) with timeouts and status
-│   │   └── orders/               checkout, order history, cancellation
+│   │   ├── orders/               checkout, order history, cancellation, fulfilment
+│   │   └── analytics/            admin dashboard reporting (read-only)
 │   ├── src/main/resources/db/migration/   Flyway schema migrations
 │   ├── src/main/resources/db/seed/        demo catalog (optional in deployments)
 │   └── src/test/java/…           integration tests, LocalDevApplication (embedded Postgres)
@@ -197,11 +207,14 @@ buildmybundle/
 │   └── src/
 │       ├── app/                  routes and layout
 │       ├── components/ui/        design-system primitives
-│       ├── features/             auth, catalog, cart, checkout, orders, wishlist, account, goals, recommendations, bundles
+│       ├── features/             auth, catalog, cart, checkout, orders, wishlist, account, goals, recommendations, bundles, ai, admin
 │       ├── lib/                  API client (CSRF + problem details), query client
 │       └── test/                 MSW server and render helpers
-├── docs/ARCHITECTURE.md
-└── docker-compose.yml
+│   └── e2e/                      Playwright end-to-end tests
+├── docs/                         ARCHITECTURE.md, DEPLOYMENT.md
+├── scripts/                      database backup and restore
+├── .github/workflows/ci.yml      tests, E2E and image builds
+└── docker-compose.yml            production-style stack
 ```
 
 ## Roadmap
@@ -215,4 +228,4 @@ buildmybundle/
 | 5. Bundle builder | Replace / lock / remove items, live totals, saved bundles | ✅ Done |
 | 6. AI features | Ollama via Spring AI with deterministic fallback | ✅ Done |
 | 7. Admin and testing | Admin dashboard, security and E2E tests | ✅ Done |
-| 8. Deployment | Production configuration and final docs | ⏳ |
+| 8. Deployment | Production configuration, CI, backups and final docs | ✅ Done |
