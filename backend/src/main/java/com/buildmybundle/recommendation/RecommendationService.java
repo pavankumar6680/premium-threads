@@ -70,9 +70,21 @@ public class RecommendationService {
 
 	@Transactional
 	public RunView generate(UUID goalId, Long userId) {
+		return generate(goalId, userId, null);
+	}
+
+	/**
+	 * @param differentFrom a previous run of the goal: its pieces are left out wherever another product of the
+	 *        category is available, so the shopper sees other combinations for the same budget
+	 */
+	@Transactional
+	public RunView generate(UUID goalId, Long userId, UUID differentFrom) {
 		GoalSnapshot goal = goals.find(goalId)
 			.orElseThrow(() -> ApiException.notFound("GOAL_NOT_FOUND", "This goal does not exist."));
 		Problem problem = problem(goal);
+		if (differentFrom != null) {
+			problem = without(problem, previousPieces(goalId, differentFrom));
+		}
 		EngineResult result = RecommendationEngine.recommend(problem, Limits.DEFAULT);
 
 		UUID runId = UUID.randomUUID();
@@ -145,6 +157,29 @@ public class RecommendationService {
 			.optional()
 			.orElseThrow(() -> ApiException.notFound("NO_RECOMMENDATIONS", "No recommendations for this goal yet."));
 		return get(runId);
+	}
+
+	private java.util.Set<Long> previousPieces(UUID goalId, UUID runId) {
+		RunView previous = get(runId);
+		if (!previous.goalId().equals(goalId)) {
+			throw ApiException.badRequest("RUN_OF_ANOTHER_GOAL", "Those results belong to another goal.");
+		}
+		return previous.bundles()
+			.stream()
+			.flatMap(b -> b.items().stream())
+			.map(i -> i.productId())
+			.collect(Collectors.toSet());
+	}
+
+	/** The problem without the given products, except in categories where nothing else would be left. */
+	private static Problem without(Problem problem, java.util.Set<Long> excluded) {
+		Map<String, List<ProductFacts>> candidates = new LinkedHashMap<>();
+		problem.candidates().forEach((slug, products) -> {
+			List<ProductFacts> others = products.stream().filter(p -> !excluded.contains(p.id())).toList();
+			candidates.put(slug, others.isEmpty() ? products : others);
+		});
+		return new Problem(problem.needs(), candidates, problem.rules(), problem.budgetCents(), problem.space(),
+				problem.owned(), problem.context(), problem.categoryNames());
 	}
 
 	private Problem problem(GoalSnapshot goal) {

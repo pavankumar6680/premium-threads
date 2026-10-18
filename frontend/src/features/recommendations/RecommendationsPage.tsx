@@ -1,4 +1,4 @@
-import { CircleAlert, RefreshCw, SlidersHorizontal } from 'lucide-react';
+import { CircleAlert, RefreshCw, Shuffle, SlidersHorizontal } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { Alert } from '../../components/ui/Alert';
 import { Button, buttonClasses } from '../../components/ui/Button';
@@ -42,22 +42,33 @@ export function RecommendationsPage() {
 function Header({ run }: { run: RecommendationRun }) {
   const navigate = useNavigate();
   const regenerate = useGenerateRecommendations(run.goalId);
+  const open = (next: RecommendationRun) => navigate(`/recommendations/${next.id}`);
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div>
         <Link to={`/goals/${run.goalId}`} className="text-sm font-semibold text-brand-700 hover:underline">← {run.goalTitle}</Link>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">Your bundles</h1>
+        <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight sm:text-4xl">Your outfits</h1>
         <p className="mt-1 text-sm text-slate-600">Budget {formatMoney(run.budget)}</p>
       </div>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Link to={`/goals/new?from=${run.goalId}`} className={buttonClasses('secondary', 'sm')}>
           <SlidersHorizontal className="size-4" aria-hidden="true" /> Adjust goal
         </Link>
+        {run.bundles.length > 0 && (
+          <Button
+            variant="secondary"
+            size="sm"
+            isLoading={regenerate.isPending && regenerate.variables === run.id}
+            onClick={() => regenerate.mutate(run.id, { onSuccess: open })}
+          >
+            <Shuffle className="size-4" aria-hidden="true" /> Show different pieces
+          </Button>
+        )}
         <Button
           variant="secondary"
           size="sm"
-          isLoading={regenerate.isPending}
-          onClick={() => regenerate.mutate(undefined, { onSuccess: (next) => navigate(`/recommendations/${next.id}`) })}
+          isLoading={regenerate.isPending && regenerate.variables === undefined}
+          onClick={() => regenerate.mutate(undefined, { onSuccess: open })}
         >
           <RefreshCw className="size-4" aria-hidden="true" /> Refresh with latest prices
         </Button>

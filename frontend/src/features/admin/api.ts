@@ -29,17 +29,52 @@ export type AdminProductRow = {
   updatedAt: string;
 };
 
+export type Gender = 'MEN' | 'WOMEN' | 'UNISEX';
+export type ColorFamily = 'NEUTRAL' | 'ACCENT' | 'DENIM' | 'METAL';
+
+export type AdminVariant = {
+  id: number;
+  sku: string;
+  size: string;
+  color: string;
+  colorHex: string | null;
+  colorFamily: ColorFamily;
+  active: boolean;
+  stock: number;
+};
+
+export type VariantInput = {
+  id?: number;
+  size: string;
+  color: string;
+  colorHex: string | null;
+  colorFamily: ColorFamily;
+  active: boolean;
+  stock?: number;
+};
+
 export type AdminProduct = {
   id: number;
   sku: string;
   slug: string;
   name: string;
   brand: string;
+  brandSlug: string | null;
   description: string;
   price: number;
+  compareAtPrice: number | null;
   qualityTier: number;
   active: boolean;
   categorySlug: string;
+  gender: Gender;
+  featured: boolean;
+  newArrival: boolean;
+  trending: boolean;
+  material: string | null;
+  care: string | null;
+  variants: AdminVariant[];
+  styles: string[];
+  occasions: string[];
   stock: number;
   tags: string[];
   attributes: Record<string, string[]>;
@@ -62,7 +97,29 @@ export type ProductInput = {
   attributes: Record<string, string[]>;
   version?: number;
   stock?: number;
+  compareAtPrice?: number | null;
+  gender?: Gender;
+  featured?: boolean;
+  newArrival?: boolean;
+  trending?: boolean;
+  material?: string;
+  care?: string;
+  styles?: string[];
+  occasions?: string[];
+  variants?: VariantInput[];
 };
+
+export type AdminBrand = { id: number; slug: string; name: string; description: string; featured: boolean; active: boolean; productCount: number };
+export type BrandInput = { name: string; slug?: string; description: string; featured: boolean; active: boolean };
+
+export type TermKind = 'styles' | 'occasions';
+export type AdminTerm = { id: number; slug: string; name: string; description: string; sortOrder: number; active: boolean; productCount: number };
+export type TermInput = { name: string; slug?: string; description: string; sortOrder?: number; active: boolean };
+
+export type HomeSection = { id: number; slug: string; eyebrow: string; title: string; query: string; position: number; active: boolean; builtIn: boolean };
+export type HomeSectionInput = { slug?: string; eyebrow: string; title: string; query: string; position?: number; active: boolean };
+
+export type AdminImage = { id: number; url: string; altText: string | null; color: string | null; sortOrder: number; uploaded: boolean };
 
 export type AttributeDefinition = { key: string; label: string; type: AttributeType; unit: string | null; filterable: boolean };
 
@@ -97,7 +154,9 @@ export type Operator =
   | 'EQUALS'
   | 'LIST_CONTAINS'
   | 'LIST_INTERSECTS'
+  | 'LIST_DISJOINT'
   | 'LTE'
+  | 'MAX_DIFFERENCE'
   | 'LTE_SPACE_WIDTH'
   | 'LTE_SPACE_DEPTH'
   | 'REQUIRES_CATEGORY_UNLESS';
@@ -212,6 +271,10 @@ export const adminKeys = {
   rules: ['admin', 'rules'] as const,
   templates: ['admin', 'templates'] as const,
   summary: (days: number) => ['admin', 'summary', days] as const,
+  brands: ['admin', 'brands'] as const,
+  terms: (kind: TermKind) => ['admin', 'terms', kind] as const,
+  homeSections: ['admin', 'home-sections'] as const,
+  images: (productId: number) => ['admin', 'images', productId] as const,
   audit: (entityType: string, page: number) => ['admin', 'audit', entityType, page] as const,
 };
 
@@ -282,6 +345,22 @@ export function useAnalytics(days: number) {
   });
 }
 
+export function useAdminBrands() {
+  return useQuery({ queryKey: adminKeys.brands, queryFn: () => api.get<AdminBrand[]>('/admin/brands') });
+}
+
+export function useTerms(kind: TermKind) {
+  return useQuery({ queryKey: adminKeys.terms(kind), queryFn: () => api.get<AdminTerm[]>(`/admin/${kind}`) });
+}
+
+export function useHomeSections() {
+  return useQuery({ queryKey: adminKeys.homeSections, queryFn: () => api.get<HomeSection[]>('/admin/home-sections') });
+}
+
+export function useProductImages(productId: number) {
+  return useQuery({ queryKey: adminKeys.images(productId), queryFn: () => api.get<AdminImage[]>(`/admin/products/${productId}/images`) });
+}
+
 export function useAuditLog(entityType: string, page: number) {
   return useQuery({
     queryKey: adminKeys.audit(entityType, page),
@@ -308,6 +387,46 @@ function useAdminMutation<TVariables, TResult>(fn: (variables: TVariables) => Pr
 export const useSaveProduct = () =>
   useAdminMutation(({ id, input }: { id: number | null; input: ProductInput }) =>
     id === null ? api.post<AdminProduct>('/admin/products', input) : api.put<AdminProduct>(`/admin/products/${id}`, input),
+  );
+
+export const useSaveBrand = () =>
+  useAdminMutation(({ id, input }: { id: number | null; input: BrandInput }) =>
+    id === null ? api.post<AdminBrand>('/admin/brands', input) : api.put<AdminBrand>(`/admin/brands/${id}`, input),
+  );
+
+export const useSaveTerm = () =>
+  useAdminMutation(({ kind, id, input }: { kind: TermKind; id: number | null; input: TermInput }) =>
+    id === null ? api.post<AdminTerm>(`/admin/${kind}`, input) : api.put<AdminTerm>(`/admin/${kind}/${id}`, input),
+  );
+
+export const useSaveHomeSection = () =>
+  useAdminMutation(({ id, input }: { id: number | null; input: HomeSectionInput }) =>
+    id === null ? api.post<HomeSection>('/admin/home-sections', input) : api.put<HomeSection>(`/admin/home-sections/${id}`, input),
+  );
+
+export const useDeleteHomeSection = () => useAdminMutation((id: number) => api.delete<void>(`/admin/home-sections/${id}`));
+
+export const useSetVariantStock = () =>
+  useAdminMutation(({ variantId, quantity }: { variantId: number; quantity: number }) =>
+    api.put<AdminProduct>(`/admin/variants/${variantId}/stock`, { quantity }),
+  );
+
+export const useUploadImage = () =>
+  useAdminMutation(({ productId, file, color }: { productId: number; file: File; color: string }) => {
+    const body = new FormData();
+    body.append('file', file);
+    if (color) body.append('color', color);
+    return api.post<AdminImage[]>(`/admin/products/${productId}/images`, body);
+  });
+
+export const useImagePrimary = () =>
+  useAdminMutation(({ productId, imageId }: { productId: number; imageId: number }) =>
+    api.put<AdminImage[]>(`/admin/products/${productId}/images/${imageId}/primary`),
+  );
+
+export const useDeleteImage = () =>
+  useAdminMutation(({ productId, imageId }: { productId: number; imageId: number }) =>
+    api.delete<AdminImage[]>(`/admin/products/${productId}/images/${imageId}`),
   );
 
 export const useSetStock = () =>

@@ -17,12 +17,12 @@ public class AssistedGoalInterpreter implements GoalInterpreter {
 
 	/** Kept short on purpose: on a CPU, prompt length dominates the response time of a local model. */
 	static final String SYSTEM_PROMPT = """
-			Read a shopper's request for an online store and answer with one JSON object:
-			{"templateSlug": the matching template slug or null,
+			Read a shopper's request for a fashion store and answer with one JSON object:
+			{"templateSlug": the outfit template for the occasion and wardrobe (men/women), or null,
 			 "budget": the total budget the shopper stated as a number, or null,
-			 "categories": [{"slug": category slug, "kind": "OWNED"}] for products the shopper says they already have,
-			 "usageTags": usage tags that describe how they will use the products,
-			 "clarifyingQuestions": [one short question only if the budget or the needed products are unclear]}
+			 "categories": [{"slug": category slug, "kind": "OWNED"}] for pieces the shopper says they already have,
+			 "usageTags": style tags the shopper asked for (e.g. casual, formal),
+			 "clarifyingQuestions": [one short question only if the occasion or the budget is unclear]}
 			Use only slugs and tags from the lists. Do not guess: leave out anything the shopper did not say.""";
 
 	private final VocabularyLoader vocabulary;
@@ -56,7 +56,7 @@ public class AssistedGoalInterpreter implements GoalInterpreter {
 				Request: "%s"
 				Templates: %s
 				Categories: %s
-				Usage tags: %s
+				Style tags: %s
 				""".formatted(text.replace('"', '\''), templates, categories, String.join(", ", vocab.tags()));
 	}
 }

@@ -145,6 +145,28 @@ class RecommendationIntegrationTest extends IntegrationTest {
 	}
 
 	@Test
+	void anotherLookAvoidsThePreviousPiecesWithinTheSameBudget() throws Exception {
+		String goalId = goal("weekend-casual-men", 300, WEEKEND_MEN_ITEMS, null);
+		String first = recommend(goalId);
+		List<Integer> before = JsonPath.read(first, "$.bundles[*].items[*].productId");
+
+		String second = new BrowserSession(mockMvc)
+			.post("/api/v1/goals/" + goalId + "/recommendations?differentFrom=" + JsonPath.read(first, "$.id"))
+			.andExpect(status().isCreated())
+			.andReturn().getResponse().getContentAsString();
+
+		assertThat(JsonPath.<String>read(second, "$.status")).isEqualTo("OK");
+		assertThat(JsonPath.<List<Double>>read(second, "$.bundles[*].totalPrice")).allSatisfy(t -> assertThat(t).isLessThanOrEqualTo(300.0));
+		assertThat(JsonPath.<List<Integer>>read(second, "$.bundles[*].items[*].productId")).doesNotContainAnyElementsOf(before);
+
+		String otherGoal = goal("weekend-casual-men", 300, WEEKEND_MEN_ITEMS, null);
+		new BrowserSession(mockMvc)
+			.post("/api/v1/goals/" + otherGoal + "/recommendations?differentFrom=" + JsonPath.read(first, "$.id"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("RUN_OF_ANOTHER_GOAL"));
+	}
+
+	@Test
 	void unknownIdsReturn404() throws Exception {
 		mockMvc.perform(get("/api/v1/recommendations/00000000-0000-0000-0000-000000000000"))
 			.andExpect(status().isNotFound())

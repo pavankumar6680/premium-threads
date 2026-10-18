@@ -3,8 +3,11 @@ import { NotFoundPage } from '../../pages/NotFoundPage';
 import { ActivityPage } from './ActivityPage';
 import { AdminLayout } from './AdminLayout';
 import { AdminOrderPage } from './AdminOrderPage';
+import { BrandsAdminPage } from './BrandsAdminPage';
 import { CategoriesPage } from './CategoriesPage';
 import { DashboardPage } from './DashboardPage';
+import { HomepageAdminPage } from './HomepageAdminPage';
+import { MerchandisingPage } from './MerchandisingPage';
 import { OrdersPage } from './OrdersPage';
 import { ProductEditorPage } from './ProductEditorPage';
 import { ProductsPage } from './ProductsPage';
@@ -21,7 +24,10 @@ export default function AdminApp() {
         <Route path="products/:id" element={<ProductEditorPage />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="orders/:id" element={<AdminOrderPage />} />
+        <Route path="brands" element={<BrandsAdminPage />} />
         <Route path="categories" element={<CategoriesPage />} />
+        <Route path="styles" element={<MerchandisingPage />} />
+        <Route path="homepage" element={<HomepageAdminPage />} />
         <Route path="rules" element={<RulesPage />} />
         <Route path="templates" element={<TemplatesPage />} />
         <Route path="activity" element={<ActivityPage />} />

@@ -60,6 +60,16 @@ public final class BrowserSession {
 		return mutate(MockMvcRequestBuilders.patch(path).contentType(MediaType.APPLICATION_JSON).content(json));
 	}
 
+	public ResultActions multipart(String path, org.springframework.mock.web.MockMultipartFile file) throws Exception {
+		ensureCsrfToken();
+		var request = MockMvcRequestBuilders.multipart(path).file(file)
+			.header("X-XSRF-TOKEN", jar.get(CSRF_COOKIE).getValue())
+			.cookie(jar.values().toArray(Cookie[]::new));
+		ResultActions result = mockMvc.perform(request);
+		store(result.andReturn().getResponse());
+		return result;
+	}
+
 	public ResultActions put(String path) throws Exception {
 		return mutate(MockMvcRequestBuilders.put(path));
 	}

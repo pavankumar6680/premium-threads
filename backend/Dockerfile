@@ -22,6 +22,8 @@ COPY --from=build /workspace/extracted/dependencies/ ./
 COPY --from=build /workspace/extracted/spring-boot-loader/ ./
 COPY --from=build /workspace/extracted/snapshot-dependencies/ ./
 COPY --from=build /workspace/extracted/application/ ./
+# uploaded product images (a volume in docker-compose); the rest of the filesystem is read-only
+RUN mkdir -p /app/media && chown spring:spring /app/media
 USER spring
 EXPOSE 8080
 ENV SPRING_PROFILES_ACTIVE=prod \

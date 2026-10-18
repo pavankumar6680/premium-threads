@@ -63,7 +63,7 @@ class SecurityConfig {
 			.authorizeHttpRequests(auth -> auth
 				.requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login").permitAll()
 				.requestMatchers(HttpMethod.GET, "/api/v1/auth/csrf", "/api/v1/categories", "/api/v1/brands", "/api/v1/brands/*",
-						"/api/v1/vocabulary", "/api/v1/products",
+						"/api/v1/vocabulary", "/api/v1/home/sections", "/api/v1/products",
 						"/api/v1/products/**", "/api/v1/goal-templates", "/api/v1/goal-templates/*",
 						"/api/v1/goal-categories", "/api/v1/goals/*", "/api/v1/goals/*/recommendations/latest",
 						"/api/v1/recommendations/*", "/api/v1/bundles/*", "/api/v1/bundles/*/alternatives",
@@ -75,6 +75,7 @@ class SecurityConfig {
 				.permitAll()
 				.requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
 				.requestMatchers("/api/v1/**").authenticated()
+				.requestMatchers(HttpMethod.GET, "/media/**").permitAll()
 				.requestMatchers("/actuator/health/**", "/actuator/info", "/v3/api-docs/**", "/swagger-ui/**",
 						"/swagger-ui.html", "/error")
 				.permitAll()

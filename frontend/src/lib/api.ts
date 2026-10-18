@@ -63,13 +63,15 @@ async function refreshCsrfToken(): Promise<void> {
 
 function send(path: string, method: string, options: RequestOptions, mutating: boolean): Promise<Response> {
   const headers: Record<string, string> = { Accept: 'application/json', ...options.headers };
-  if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+  // FormData (file uploads) sets its own multipart content type with the boundary
+  const form = options.body instanceof FormData;
+  if (options.body !== undefined && !form) headers['Content-Type'] = 'application/json';
   if (mutating) headers[CSRF_HEADER] = readCookie(CSRF_COOKIE) ?? '';
   return fetch(apiUrl(path), {
     method,
     headers,
     credentials: 'include',
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    body: options.body === undefined ? undefined : form ? (options.body as FormData) : JSON.stringify(options.body),
     signal: options.signal,
   });
 }

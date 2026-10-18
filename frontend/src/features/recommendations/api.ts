@@ -104,7 +104,9 @@ export function useLatestRun(goalId: string) {
 export function useGenerateRecommendations(goalId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post<RecommendationRun>(`/goals/${goalId}/recommendations`),
+    /** differentFrom: a previous run whose pieces should be avoided (another look for the same budget) */
+    mutationFn: (differentFrom?: string) =>
+      api.post<RecommendationRun>(`/goals/${goalId}/recommendations${differentFrom ? `?differentFrom=${differentFrom}` : ''}`),
     onSuccess: (run) => {
       queryClient.setQueryData(recommendationKeys.run(run.id), run);
       queryClient.setQueryData(recommendationKeys.latest(goalId), run);

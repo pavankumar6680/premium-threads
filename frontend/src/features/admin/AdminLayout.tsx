@@ -1,14 +1,17 @@
 import clsx from 'clsx';
-import { Boxes, ClipboardList, FolderTree, History, LayoutDashboard, Package, ShieldCheck, Target } from 'lucide-react';
+import { Boxes, ClipboardList, FolderTree, History, House, LayoutDashboard, Package, Palette, ShieldCheck, Tags, Target } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router';
 
 const NAV = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/admin/products', label: 'Products', icon: Boxes },
   { to: '/admin/orders', label: 'Orders', icon: Package },
+  { to: '/admin/brands', label: 'Brands', icon: Tags },
   { to: '/admin/categories', label: 'Categories', icon: FolderTree },
-  { to: '/admin/rules', label: 'Compatibility', icon: ShieldCheck },
-  { to: '/admin/templates', label: 'Goal templates', icon: Target },
+  { to: '/admin/styles', label: 'Styles & occasions', icon: Palette },
+  { to: '/admin/homepage', label: 'Homepage', icon: House },
+  { to: '/admin/rules', label: 'Outfit rules', icon: ShieldCheck },
+  { to: '/admin/templates', label: 'Outfit templates', icon: Target },
   { to: '/admin/activity', label: 'Activity log', icon: History },
 ];
 

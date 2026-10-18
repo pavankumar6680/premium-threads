@@ -8,7 +8,18 @@ import { TextField } from '../../components/ui/TextField';
 import { useToast } from '../../components/ui/Toast';
 import { ApiError } from '../../lib/api';
 import { formatDateTime } from '../../lib/format';
-import { useAdminCategories, useAdminProduct, useSaveProduct, type AdminCategory, type AdminProduct, type ProductInput } from './api';
+import { useVocabulary } from '../catalog/api';
+import {
+  useAdminBrands,
+  useAdminCategories,
+  useAdminProduct,
+  useSaveProduct,
+  type AdminCategory,
+  type AdminProduct,
+  type Gender,
+  type ProductInput,
+} from './api';
+import { ImagesCard, rowsOf, VariantsEditor, type VariantRow } from './ProductMerchandising';
 import { Card, Checkbox, errorMessage, fieldErrorsOf, PageHeader, SelectField, splitList, TextAreaField } from './components/AdminUi';
 
 /** /admin/products/new and /admin/products/:id */
@@ -36,6 +47,16 @@ type FormState = {
   tags: string;
   stock: string;
   attributes: Record<string, string>;
+  compareAtPrice: string;
+  gender: Gender;
+  featured: boolean;
+  newArrival: boolean;
+  trending: boolean;
+  material: string;
+  care: string;
+  styles: string[];
+  occasions: string[];
+  variants: VariantRow[];
 };
 
 function initialState(product: AdminProduct | null): FormState {
@@ -51,6 +72,16 @@ function initialState(product: AdminProduct | null): FormState {
     tags: product?.tags.join(', ') ?? '',
     stock: '0',
     attributes: Object.fromEntries(Object.entries(product?.attributes ?? {}).map(([k, v]) => [k, v.join(', ')])),
+    compareAtPrice: product?.compareAtPrice != null ? String(product.compareAtPrice) : '',
+    gender: product?.gender ?? 'UNISEX',
+    featured: product?.featured ?? false,
+    newArrival: product?.newArrival ?? false,
+    trending: product?.trending ?? false,
+    material: product?.material ?? '',
+    care: product?.care ?? '',
+    styles: product?.styles ?? [],
+    occasions: product?.occasions ?? [],
+    variants: rowsOf(product?.variants ?? []),
   };
 }
 
@@ -58,6 +89,8 @@ function ProductForm({ product, categories, onReload }: { product: AdminProduct 
   const navigate = useNavigate();
   const toast = useToast();
   const save = useSaveProduct();
+  const brands = useAdminBrands();
+  const vocabulary = useVocabulary();
   const [form, setForm] = useState<FormState>(() => initialState(product));
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
 
@@ -87,6 +120,26 @@ function ProductForm({ product, categories, onReload }: { product: AdminProduct 
       active: form.active,
       tags: splitList(form.tags.toLowerCase()),
       attributes,
+      compareAtPrice: form.compareAtPrice.trim() ? Number(form.compareAtPrice) : null,
+      gender: form.gender,
+      featured: form.featured,
+      newArrival: form.newArrival,
+      trending: form.trending,
+      material: form.material.trim(),
+      care: form.care.trim(),
+      styles: form.styles,
+      occasions: form.occasions,
+      ...(form.variants.length > 0 && {
+        variants: form.variants.map((v) => ({
+          ...(v.id !== undefined && { id: v.id }),
+          size: v.size.trim(),
+          color: v.color.trim(),
+          colorHex: v.colorHex.toUpperCase(),
+          colorFamily: v.colorFamily,
+          active: v.active,
+          ...(v.id === undefined && { stock: Math.max(0, Math.floor(Number(v.stock) || 0)) }),
+        })),
+      }),
       ...(product ? { version: product.version } : { stock: Number(form.stock) || 0 }),
     };
     save.mutate(
@@ -129,7 +182,11 @@ function ProductForm({ product, categories, onReload }: { product: AdminProduct 
         <Card title="Details">
           <div className="grid gap-4 sm:grid-cols-2">
             <TextField label="Name" value={form.name} onChange={(e) => update('name', e.target.value)} error={errors.name} required />
-            <TextField label="Brand" value={form.brand} onChange={(e) => update('brand', e.target.value)} error={errors.brand} required />
+            <SelectField label="Brand" value={form.brand} onChange={(e) => update('brand', e.target.value)} error={errors.brand} required hint="Add brands on the Brands page.">
+              <option value="">Choose a brand</option>
+              {brands.data?.filter((b) => b.active || b.name === form.brand).map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}
+              {form.brand && !brands.data?.some((b) => b.name === form.brand) && <option value={form.brand}>{form.brand}</option>}
+            </SelectField>
             <TextField label="SKU" value={form.sku} onChange={(e) => update('sku', e.target.value)} error={errors.sku} hint="Letters, digits and dashes; stored in upper case." required />
             <SelectField label="Category" value={form.categorySlug} onChange={(e) => update('categorySlug', e.target.value)} error={errors.categorySlug} required>
               <option value="">Choose a category</option>
@@ -144,6 +201,7 @@ function ProductForm({ product, categories, onReload }: { product: AdminProduct 
         <Card title="Price and availability">
           <div className="grid gap-4 sm:grid-cols-3">
             <TextField label="Price (USD)" type="number" min={0} step="0.01" value={form.price} onChange={(e) => update('price', e.target.value)} error={errors.price} required />
+            <TextField label="Original price (USD)" type="number" min={0} step="0.01" value={form.compareAtPrice} onChange={(e) => update('compareAtPrice', e.target.value)} error={errors.compareAtPrice} hint="Set above the price to show a discount." />
             <SelectField label="Quality tier" value={form.qualityTier} onChange={(e) => update('qualityTier', e.target.value)} hint="Used by the recommendation engine.">
               <option value="1">1 · Budget</option>
               <option value="2">2 · Mid-range</option>
@@ -152,14 +210,37 @@ function ProductForm({ product, categories, onReload }: { product: AdminProduct 
             {product ? (
               <div>
                 <p className="mb-1.5 text-sm font-medium text-slate-700">Stock</p>
-                <p className="flex h-11 items-center text-sm text-slate-700">{product.stock} units · change it in the product list</p>
+                <p className="flex h-11 items-center text-sm text-slate-700">{product.stock} units over all variants</p>
               </div>
-            ) : (
-              <TextField label="Initial stock" type="number" min={0} value={form.stock} onChange={(e) => update('stock', e.target.value)} error={errors.stock} />
-            )}
+            ) : form.variants.length === 0 ? (
+              <TextField label="Initial stock" type="number" min={0} value={form.stock} onChange={(e) => update('stock', e.target.value)} error={errors.stock} hint="For a one-size product without variants." />
+            ) : null}
           </div>
           <Checkbox className="mt-4" label="On sale" checked={form.active} onChange={(e) => update('active', e.target.checked)} />
         </Card>
+
+        <Card title="Merchandising">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <SelectField label="Wardrobe" value={form.gender} onChange={(e) => update('gender', e.target.value as Gender)}>
+              <option value="MEN">Men</option>
+              <option value="WOMEN">Women</option>
+              <option value="UNISEX">Unisex</option>
+            </SelectField>
+            <TextField label="Material" value={form.material} onChange={(e) => update('material', e.target.value)} error={errors.material} />
+            <TextField label="Care" value={form.care} onChange={(e) => update('care', e.target.value)} error={errors.care} />
+          </div>
+          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
+            <Checkbox label="Featured (recommended on the homepage)" checked={form.featured} onChange={(e) => update('featured', e.target.checked)} />
+            <Checkbox label="New arrival" checked={form.newArrival} onChange={(e) => update('newArrival', e.target.checked)} />
+            <Checkbox label="Trending" checked={form.trending} onChange={(e) => update('trending', e.target.checked)} />
+          </div>
+          <ChipGroup label="Styles" options={vocabulary.data?.styles ?? []} value={form.styles} onChange={(v) => update('styles', v)} />
+          <ChipGroup label="Occasions" options={vocabulary.data?.occasions ?? []} value={form.occasions} onChange={(v) => update('occasions', v)} />
+        </Card>
+
+        <VariantsEditor rows={form.variants} onChange={(rows) => update('variants', rows)} sizeScale={sizeScaleOf(category)} />
+
+        {product && <ImagesCard productId={product.id} colors={[...new Set(form.variants.map((v) => v.color).filter(Boolean))]} />}
 
         <Card title="Specifications">
           {!category ? (
@@ -205,7 +286,7 @@ function ProductForm({ product, categories, onReload }: { product: AdminProduct 
             value={form.tags}
             onChange={(e) => update('tags', e.target.value)}
             error={Object.entries(errors).find(([k]) => k.startsWith('tags'))?.[1]}
-            hint="Usage tags used for relevance, e.g. gaming, compact, ergonomic"
+            hint="Tags used for relevance, e.g. weekend, office, casual"
           />
         </Card>
 
@@ -215,5 +296,42 @@ function ProductForm({ product, categories, onReload }: { product: AdminProduct 
         </div>
       </form>
     </>
+  );
+}
+
+/** ALPHA, WAIST or ONE_SIZE from the category, guessed from its slug (the admin category list has no scale). */
+function sizeScaleOf(category: AdminCategory | undefined): string | null {
+  if (!category) return null;
+  if (/jeans|trousers|skirts/.test(category.slug)) return 'WAIST';
+  if (category.departmentSlug === 'accessories') return 'ONE_SIZE';
+  return 'ALPHA';
+}
+
+function ChipGroup({ label, options, value, onChange }: {
+  label: string;
+  options: { slug: string; name: string }[];
+  value: string[];
+  onChange: (value: string[]) => void;
+}) {
+  return (
+    <fieldset className="mt-4">
+      <legend className="mb-1.5 text-sm font-medium text-slate-700">{label}</legend>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((o) => {
+          const on = value.includes(o.slug);
+          return (
+            <button
+              key={o.slug}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onChange(on ? value.filter((v) => v !== o.slug) : [...value, o.slug])}
+              className={on ? 'h-8 rounded-full bg-slate-900 px-3 text-xs font-semibold text-white' : 'h-8 rounded-full border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-slate-900'}
+            >
+              {o.name}
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
   );
 }

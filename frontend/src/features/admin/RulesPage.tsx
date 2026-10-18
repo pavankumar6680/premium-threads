@@ -22,12 +22,29 @@ import { Badge, Card, Checkbox, errorMessage, fieldErrorsOf, PageHeader, SelectF
 const OPERATORS: Record<Operator, { label: string; help: string; pairwise: boolean; space: boolean }> = {
   EQUALS: { label: 'Values match', help: 'A value of the source equals a value of the target (lens mount = camera mount).', pairwise: true, space: false },
   LIST_CONTAINS: { label: 'Target supports all', help: 'The target list contains every source value (card format in the camera’s slots).', pairwise: true, space: false },
-  LIST_INTERSECTS: { label: 'Share a value', help: 'Source and target lists share at least one value (monitor inputs ∩ PC outputs).', pairwise: true, space: false },
-  LTE: { label: 'At most', help: 'Source number ≤ target number (monitor weight ≤ arm load).', pairwise: true, space: false },
+  LIST_INTERSECTS: { label: 'Share a value', help: 'Source and target lists share at least one value (both made for the same wardrobe).', pairwise: true, space: false },
+  LIST_DISJOINT: { label: 'No shared value', help: 'Source and target lists have no value in common (two pieces never cover the same part of an outfit).', pairwise: true, space: false },
+  LTE: { label: 'At most', help: 'Source number ≤ target number.', pairwise: true, space: false },
+  MAX_DIFFERENCE: { label: 'Close in value', help: 'The two numbers differ by at most the given amount (dress codes at most 2 levels apart).', pairwise: true, space: false },
   LTE_SPACE_WIDTH: { label: 'Fits room width', help: 'Source number ≤ the width the customer entered.', pairwise: false, space: true },
   LTE_SPACE_DEPTH: { label: 'Fits room depth', help: 'Source number ≤ the depth the customer entered.', pairwise: false, space: true },
   REQUIRES_CATEGORY_UNLESS: { label: 'Needs a companion', help: 'Unless the source list contains the value, the bundle needs a product from the target category (an XLR-only mic needs an audio interface).', pairwise: false, space: false },
 };
+
+/** Rule category meaning "every category". */
+const ANY = '*';
+
+const DERIVED_ATTRIBUTES = [
+  { key: 'wardrobe', label: 'Wardrobe (derived)' },
+  { key: 'covers', label: 'Part of the outfit (derived)' },
+  { key: 'dress_code', label: 'Dress code (derived)' },
+];
+
+function uniqueAttributes(categories: AdminCategory[]) {
+  const seen = new Map<string, AdminCategory['attributes'][number]>();
+  categories.flatMap((c) => c.attributes).forEach((a) => seen.set(a.key, seen.get(a.key) ?? a));
+  return [...seen.values()];
+}
 
 const EMPTY: RuleInput = {
   code: '',
@@ -52,7 +69,7 @@ export function RulesPage() {
 
   if (rules.isPending || categories.isPending) return <PageSpinner />;
   if (rules.isError || categories.isError) return <Alert tone="error">Rules could not be loaded.</Alert>;
-  const name = (slug: string | null) => categories.data.find((c) => c.slug === slug)?.name ?? slug ?? '';
+  const name = (slug: string | null) => (slug === ANY ? 'Any piece' : categories.data.find((c) => c.slug === slug)?.name ?? slug ?? '');
 
   return (
     <>
@@ -138,7 +155,13 @@ function RuleEditor({ rule, categories, onDone }: { rule: AdminRule | null; cate
   const op = OPERATORS[form.operator];
   const needsTarget = op.pairwise || form.operator === 'REQUIRES_CATEGORY_UNLESS';
   const leaves = categories.filter((c) => c.leaf && c.attributes.length > 0);
-  const attrs = (slug: string | null) => categories.find((c) => c.slug === slug)?.attributes ?? [];
+  // every product also carries attributes derived by the catalog, usable in any rule
+  const derived = DERIVED_ATTRIBUTES.map((a) => ({ ...a, type: 'LIST' as const, unit: null, filterable: false }));
+  const attrs = (slug: string | null) => {
+    if (!slug) return [];
+    const own = slug === ANY ? uniqueAttributes(leaves) : categories.find((c) => c.slug === slug)?.attributes ?? [];
+    return [...derived, ...own.filter((a) => !derived.some((d) => d.key === a.key))];
+  };
   const errors = { ...fieldErrorsOf(preview.error), ...fieldErrorsOf(save.error) };
   const set = <K extends keyof RuleInput>(key: K, value: RuleInput[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -150,7 +173,7 @@ function RuleEditor({ rule, categories, onDone }: { rule: AdminRule | null; cate
     code: form.code.trim().toUpperCase(),
     targetCategory: needsTarget ? form.targetCategory : null,
     targetAttr: op.pairwise ? form.targetAttr : null,
-    value: form.operator === 'REQUIRES_CATEGORY_UNLESS' ? form.value : null,
+    value: form.operator === 'REQUIRES_CATEGORY_UNLESS' || form.operator === 'MAX_DIFFERENCE' ? form.value : null,
   });
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -176,6 +199,7 @@ function RuleEditor({ rule, categories, onDone }: { rule: AdminRule | null; cate
           </SelectField>
           <SelectField label="Source category" value={form.sourceCategory} onChange={(e) => setForm((f) => ({ ...f, sourceCategory: e.target.value, sourceAttr: '' }))} error={errors.sourceCategory}>
             <option value="">Choose…</option>
+            {op.pairwise && <option value={ANY}>Any piece</option>}
             {leaves.map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}
           </SelectField>
           <SelectField label="Source attribute" value={form.sourceAttr} onChange={(e) => set('sourceAttr', e.target.value)} error={errors.sourceAttr} disabled={!form.sourceCategory}>
@@ -185,6 +209,7 @@ function RuleEditor({ rule, categories, onDone }: { rule: AdminRule | null; cate
           {needsTarget && (
             <SelectField label="Target category" value={form.targetCategory ?? ''} onChange={(e) => setForm((f) => ({ ...f, targetCategory: e.target.value || null, targetAttr: null }))} error={errors.targetCategory}>
               <option value="">Choose…</option>
+              {op.pairwise && <option value={ANY}>Any piece</option>}
               {leaves.map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}
             </SelectField>
           )}
@@ -193,6 +218,9 @@ function RuleEditor({ rule, categories, onDone }: { rule: AdminRule | null; cate
               <option value="">Choose…</option>
               {attrs(form.targetCategory).map((a) => <option key={a.key} value={a.key}>{a.label} ({a.key})</option>)}
             </SelectField>
+          )}
+          {form.operator === 'MAX_DIFFERENCE' && (
+            <TextField label="Largest difference" type="number" min={0} step="any" value={form.value ?? ''} onChange={(e) => set('value', e.target.value)} error={errors.value} hint="e.g. 2" />
           )}
           {form.operator === 'REQUIRES_CATEGORY_UNLESS' && (
             <TextField label="Unless the source has" value={form.value ?? ''} onChange={(e) => set('value', e.target.value)} error={errors.value} hint="e.g. USB" />

@@ -42,11 +42,15 @@ class RecommendationController {
 	}
 
 	@Operation(summary = "Generate Budget, Balanced and Premium bundles for a goal",
-			description = "Runs the compatibility-aware budget optimizer on live catalog data and stores the result.")
+			description = "Runs the compatibility-aware budget optimizer on live catalog data and stores the result. "
+					+ "With differentFrom (a previous run of the goal), that run's pieces are avoided where the catalog "
+					+ "has alternatives, giving other combinations for the same budget.")
 	@PostMapping("/goals/{goalId}/recommendations")
 	@ResponseStatus(HttpStatus.CREATED)
-	RunView generate(@PathVariable UUID goalId, @AuthenticationPrincipal AuthenticatedUser user) {
-		return recommendations.generate(goalId, user == null ? null : user.getId());
+	RunView generate(@PathVariable UUID goalId,
+			@org.springframework.web.bind.annotation.RequestParam(required = false) UUID differentFrom,
+			@AuthenticationPrincipal AuthenticatedUser user) {
+		return recommendations.generate(goalId, user == null ? null : user.getId(), differentFrom);
 	}
 
 	@GetMapping("/goals/{goalId}/recommendations/latest")

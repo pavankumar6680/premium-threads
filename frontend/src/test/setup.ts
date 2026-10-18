@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll } from 'vitest';
 import { server } from './server';
 
 // whole-app renders (header with menus, illustrations) can take more than the default 1 s under parallel load
-configure({ asyncUtilTimeout: 3000 });
+configure({ asyncUtilTimeout: 8000 });
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => {

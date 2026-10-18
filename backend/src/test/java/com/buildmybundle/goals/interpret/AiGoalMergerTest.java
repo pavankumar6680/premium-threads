@@ -111,4 +111,18 @@ class AiGoalMergerTest {
 		assertThat(merged.items()).extracting(GoalAnalysis.Item::categorySlug).containsExactly("men-hoodies", "men-jeans");
 		assertThat(merged.clarifications()).containsExactly("What is your total budget?", "Do you already have jeans?");
 	}
+
+	@org.junit.jupiter.api.Test
+	void parsesATypicalModelAnswer() {
+		String answer = "{\"templateSlug\": \"date-night-women\", \"budget\": 250, \"categories\": [{\"slug\": \"women-dresses\"}], "
+				+ "\"usageTags\": [\"formal\", \"party-wear\"], \"clarifyingQuestions\": []}";
+		org.assertj.core.api.Assertions.assertThat(AiGoalMerger.parse(answer)).isPresent();
+		// small models also answer with bare slugs and lone values
+		org.assertj.core.api.Assertions.assertThat(AiGoalMerger.parse(
+				"{\"templateSlug\": \"office-men\", \"categories\": [\"men-shirts\"], \"usageTags\": \"formal\"}"))
+			.hasValueSatisfying(ai -> {
+				org.assertj.core.api.Assertions.assertThat(ai.categories()).extracting(AiGoalMerger.AiCategory::slug).containsExactly("men-shirts");
+				org.assertj.core.api.Assertions.assertThat(ai.usageTags()).containsExactly("formal");
+			});
+	}
 }

@@ -64,7 +64,7 @@ describe('recommendations', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Get my bundles' }));
 
-    expect(await screen.findByRole('heading', { name: 'Your bundles' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Your outfits' })).toBeInTheDocument();
     expect(location.current.pathname).toBe('/recommendations/run-1');
     const balanced = screen.getByRole('article', { name: /Balanced bundle/ });
     expect(within(balanced).getByText('Your preference')).toBeInTheDocument();

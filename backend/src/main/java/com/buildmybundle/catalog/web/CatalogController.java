@@ -46,8 +46,17 @@ class CatalogController {
 
 	private final CatalogService catalog;
 
-	CatalogController(CatalogService catalog) {
+	private final com.buildmybundle.catalog.admin.MerchandisingAdminService merchandising;
+
+	CatalogController(CatalogService catalog, com.buildmybundle.catalog.admin.MerchandisingAdminService merchandising) {
 		this.catalog = catalog;
+		this.merchandising = merchandising;
+	}
+
+	@Operation(summary = "Active homepage product rails, in display order")
+	@GetMapping("/home/sections")
+	List<com.buildmybundle.catalog.admin.MerchandisingAdminService.HomeSection> homeSections() {
+		return merchandising.homeSections(true);
 	}
 
 	@Operation(summary = "Category tree (departments with their categories and product counts)")

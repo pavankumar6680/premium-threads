@@ -62,7 +62,7 @@ describe('AI assistance', () => {
     server.use(http.get(apiPath('/recommendations/run-1'), () => HttpResponse.json(run)));
     renderApp('/recommendations/run-1');
 
-    expect(await screen.findByRole('heading', { name: 'Your bundles' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Your outfits' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /AI overview/ })).toBeNull();
   });
 });

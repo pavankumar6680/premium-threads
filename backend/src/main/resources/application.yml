@@ -5,6 +5,11 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/buildmybundle}
     username: ${DB_USERNAME:bmb}
     password: ${DB_PASSWORD:bmb}
+  servlet:
+    multipart:
+      # product image uploads (ProductImageService enforces 5 MB per image)
+      max-file-size: 5MB
+      max-request-size: 6MB
   jpa:
     open-in-view: false
     hibernate:
@@ -51,6 +56,9 @@ springdoc:
     path: /swagger-ui.html
 
 app:
+  # Uploaded product images, served under /media (a Docker volume in production)
+  media:
+    dir: ${MEDIA_DIR:./.data/media}
   # Optional local AI through Ollama. Off by default: every feature works without it.
   ai:
     enabled: ${AI_ENABLED:false}

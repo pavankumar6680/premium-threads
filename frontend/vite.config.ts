@@ -23,6 +23,8 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:8080',
+      // product images uploaded in the admin
+      '/media': process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:8080',
     },
   },
 });

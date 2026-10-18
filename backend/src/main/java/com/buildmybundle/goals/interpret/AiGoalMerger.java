@@ -46,7 +46,12 @@ public final class AiGoalMerger {
 	static final int MAX_AI_QUESTIONS = 1;
 	private static final int MAX_QUESTION_LENGTH = 160;
 	private static final BigDecimal MAX_BUDGET = new BigDecimal("1000000");
-	private static final JsonMapper JSON = JsonMapper.builder().build();
+	/** Small models are loose with JSON shapes: a lone tag instead of a list, a budget written as text. */
+	private static final JsonMapper JSON = JsonMapper.builder()
+		.enable(tools.jackson.databind.DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY)
+		.enable(tools.jackson.databind.DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT)
+		.build();
+	private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AiGoalMerger.class);
 	private static final Pattern SENTENCE_BREAK = Pattern.compile("[.;!?]+|\\bbut\\b");
 	private static final Pattern REQUEST = Pattern
 		.compile("\\b(?:need|needs|want|wants|looking for|buy|buying|get me|require|requires|would like|shopping for)\\b");
@@ -58,6 +63,12 @@ public final class AiGoalMerger {
 
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	public record AiCategory(String slug, String kind, Integer quantity) {
+
+		/** A bare slug: the model named a category without saying the shopper owns it. */
+		@com.fasterxml.jackson.annotation.JsonCreator(mode = com.fasterxml.jackson.annotation.JsonCreator.Mode.DELEGATING)
+		static AiCategory of(String slug) {
+			return new AiCategory(slug, null, null);
+		}
 	}
 
 	private AiGoalMerger() {
@@ -77,6 +88,7 @@ public final class AiGoalMerger {
 			return Optional.of(JSON.readValue(answer.substring(start, end + 1), AiGoal.class));
 		}
 		catch (RuntimeException ex) {
+			log.debug("Ignoring an AI goal answer that is not the expected JSON: {}", ex.getMessage());
 			return Optional.empty();
 		}
 	}

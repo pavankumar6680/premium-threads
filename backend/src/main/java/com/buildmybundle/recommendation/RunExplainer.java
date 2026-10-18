@@ -12,6 +12,7 @@ import com.buildmybundle.ai.LanguageModel;
 import com.buildmybundle.ai.LanguageModel.AiStatus;
 import com.buildmybundle.ai.LanguageModel.Format;
 import com.buildmybundle.bundles.BundleModels.BundleView;
+import com.buildmybundle.catalog.ProductCatalog;
 import com.buildmybundle.recommendation.RecommendationViews.RunView;
 
 import org.slf4j.Logger;
@@ -36,11 +37,11 @@ public class RunExplainer {
 	private static final int MIN_LENGTH = 40;
 
 	static final String SYSTEM_PROMPT = """
-			You are a friendly shopping assistant for BuildMyBundle. Using ONLY the facts provided, write an
-			overview in 3 to 5 sentences. If there are bundles, explain what distinguishes them and which kind of
-			shopper each one suits. If no bundle fits, explain why and the most practical way forward using the
-			suggestions. Never mention a product, price, number or feature that is not in the facts.
-			Plain text only: no lists, no headings, no markdown.""";
+			You are a friendly personal stylist for BuildMyBundle. Using ONLY the facts provided, write an overview
+			in 3 to 5 sentences. If there are outfits, say why the pieces go together (colors, style, occasion) and
+			which kind of shopper each outfit suits. If no outfit fits, explain why and the most practical way forward
+			using the suggestions. Never mention a brand, product, price, size, color or number that is not in the
+			facts. Plain text only: no lists, no headings, no markdown.""";
 
 	public record Explanation(String status, String text, String model, boolean cached, String message) {
 
@@ -51,11 +52,14 @@ public class RunExplainer {
 
 	private final RecommendationService recommendations;
 	private final LanguageModel languageModel;
+	private final ProductCatalog catalog;
 	private final JdbcClient jdbc;
 
-	public RunExplainer(RecommendationService recommendations, LanguageModel languageModel, JdbcClient jdbc) {
+	public RunExplainer(RecommendationService recommendations, LanguageModel languageModel, ProductCatalog catalog,
+			JdbcClient jdbc) {
 		this.recommendations = recommendations;
 		this.languageModel = languageModel;
+		this.catalog = catalog;
 		this.jdbc = jdbc;
 	}
 
@@ -75,7 +79,8 @@ public class RunExplainer {
 			return Explanation.unavailable(status.model(), "The AI model did not answer in time. Please try again.");
 		}
 		String text = answer.get();
-		if (text.length() < MIN_LENGTH || text.length() > MAX_LENGTH || !Grounding.numbersGrounded(text, facts)) {
+		if (text.length() < MIN_LENGTH || text.length() > MAX_LENGTH || !Grounding.numbersGrounded(text, facts)
+				|| !Grounding.brandsGrounded(text, facts, catalog.brands())) {
 			log.info("Rejected AI overview for run {}: not grounded in the run's facts", runId);
 			return new Explanation("REJECTED", null, status.model(), false,
 					"The AI answer mentioned details that are not in your results, so it was discarded. Please try again.");
@@ -116,14 +121,27 @@ public class RunExplainer {
 			sb.append(b.name()).append(": total ").append(money(b.currentTotal())).append(", ").append(share)
 				.append("% of the budget, ").append(money(b.budget().subtract(b.currentTotal()))).append(" left. ");
 			sb.append(b.items().stream()
-				.map(i -> i.categoryName() + ": " + i.name() + " (" + money(i.lineTotal()) + ", rated "
-						+ i.ratingAvg().stripTrailingZeros().toPlainString() + "/5" + (i.optional() ? ", nice to have" : "") + ")")
+				.map(i -> i.categoryName() + ": " + i.name() + " by " + i.brand() + " (" + money(i.lineTotal()) + variant(i)
+						+ ", rated " + i.ratingAvg().stripTrailingZeros().toPlainString() + "/5"
+						+ (i.optional() ? ", nice to have" : "") + ")")
 				.collect(Collectors.joining("; ")));
-			sb.append(". ").append(b.compatibility().compatible() ? "All compatibility checks pass." : "Has compatibility conflicts.");
+			sb.append(". ").append(b.compatibility().compatible() ? "Every piece works with the others." : "Has conflicts between pieces.");
+			if (b.summary() != null && b.summary().contains("Colors:")) {
+				sb.append(' ').append(b.summary().substring(b.summary().indexOf("Colors:")));
+			}
 			sb.append('\n');
 		}
 		run.notes().forEach(n -> sb.append("Note: ").append(n).append('\n'));
 		return sb.toString();
+	}
+
+	private static String variant(com.buildmybundle.bundles.BundleModels.ItemView item) {
+		if (item.variant() == null) {
+			return item.needsSize() ? ", size not chosen yet" : "";
+		}
+		String size = item.variant().size().equalsIgnoreCase("One size") ? "" : ", size " + item.variant().size();
+		String color = "Standard".equals(item.variant().color()) ? "" : ", " + item.variant().color();
+		return size + color;
 	}
 
 	static String clean(String text) {

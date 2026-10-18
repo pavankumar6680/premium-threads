@@ -3,7 +3,7 @@ import { ArrowRight, ChevronLeft, ChevronRight, Palette, Ruler, ShoppingBag, Spa
 import { useRef, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { buttonClasses } from '../components/ui/Button';
-import { useBrands, useProducts } from '../features/catalog/api';
+import { useBrands, useHomeSections, useProducts, type HomeSection } from '../features/catalog/api';
 import { ProductCard, ProductGridSkeleton } from '../features/catalog/components/ProductCard';
 import type { ProductCard as Card } from '../features/catalog/types';
 
@@ -21,11 +21,27 @@ const STYLES = [
   { slug: 'party-wear', name: 'Party Wear', image: '/images/editorial/style-party.jpg' },
 ];
 
+/** Built-in rails and their defaults (used until the admin-managed sections load, or if they fail to). */
+const BUILT_IN: Record<string, Omit<HomeSection, 'id' | 'position'>> = {
+  trending: { slug: 'trending', eyebrow: 'Most wanted', title: 'Trending now', query: 'flag=trending' },
+  'new-arrivals': { slug: 'new-arrivals', eyebrow: 'Just landed', title: 'New arrivals', query: 'flag=new&sort=newest' },
+  offers: { slug: 'offers', eyebrow: 'Special offers', title: 'On sale', query: 'flag=sale&sort=discount' },
+  recommended: { slug: 'recommended', eyebrow: 'Picked for you', title: 'Recommended products', query: 'flag=featured&sort=rating' },
+};
+
 export function HomePage() {
-  const trending = useProducts('flag=trending&size=12');
-  const newArrivals = useProducts('flag=new&sort=newest&size=8');
-  const sale = useProducts('flag=sale&sort=discount&size=12');
-  const recommended = useProducts('flag=featured&sort=rating&size=8');
+  const sections = useHomeSections();
+  // a built-in rail hidden by an admin is absent from the list; before it loads, show the defaults
+  const rail = (slug: string) => (sections.data ? sections.data.find((s) => s.slug === slug) : BUILT_IN[slug]);
+  const trendingRail = rail('trending');
+  const newRail = rail('new-arrivals');
+  const offersRail = rail('offers');
+  const recommendedRail = rail('recommended');
+  const extras = sections.data?.filter((s) => !(s.slug in BUILT_IN)) ?? [];
+  const trending = useProducts(`${trendingRail?.query ?? BUILT_IN.trending.query}&size=12`);
+  const newArrivals = useProducts(`${newRail?.query ?? BUILT_IN['new-arrivals'].query}&size=8`);
+  const sale = useProducts(`${offersRail?.query ?? BUILT_IN.offers.query}&size=12`);
+  const recommended = useProducts(`${recommendedRail?.query ?? BUILT_IN.recommended.query}&size=8`);
   const brands = useBrands();
   const maxDiscount = Math.max(0, ...(sale.data?.content ?? []).map(discount));
 
@@ -103,18 +119,22 @@ export function HomePage() {
         </Section>
 
         {/* 4. Trending now */}
-        <Section eyebrow="Most wanted" title="Trending now" action={<SeeAll to="/shop?flag=trending">Shop trending</SeeAll>}>
-          <Carousel products={trending.data?.content} loading={trending.isPending} label="Trending now" />
-        </Section>
+        {trendingRail && (
+          <Section eyebrow={trendingRail.eyebrow} title={trendingRail.title} action={<SeeAll to={`/shop?${trendingRail.query}`}>Shop all</SeeAll>}>
+            <Carousel products={trending.data?.content} loading={trending.isPending} label={trendingRail.title} />
+          </Section>
+        )}
 
         {/* 5. New arrivals */}
-        <Section eyebrow="Just landed" title="New arrivals" action={<SeeAll to="/shop?flag=new&sort=newest">See what’s new</SeeAll>}>
-          {newArrivals.isPending ? <ProductGridSkeleton count={8} /> : (
-            <div className="grid grid-cols-2 gap-x-4 gap-y-8 md:grid-cols-4">
-              {newArrivals.data?.content.map((p) => <ProductCard key={p.id} product={p} />)}
-            </div>
-          )}
-        </Section>
+        {newRail && (
+          <Section eyebrow={newRail.eyebrow} title={newRail.title} action={<SeeAll to={`/shop?${newRail.query}`}>See what’s new</SeeAll>}>
+            {newArrivals.isPending ? <ProductGridSkeleton count={8} /> : (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-8 md:grid-cols-4">
+                {newArrivals.data?.content.map((p) => <ProductCard key={p.id} product={p} />)}
+              </div>
+            )}
+          </Section>
+        )}
 
         {/* 6. Shop by style */}
         <Section eyebrow="Find your vibe" title="Shop by style">
@@ -130,16 +150,17 @@ export function HomePage() {
         </Section>
 
         {/* 7. Special offers */}
+        {offersRail && (
         <section className="mt-20 overflow-hidden rounded-3xl bg-slate-900 text-white shadow-lift" aria-labelledby="offers">
           <div className="grid lg:grid-cols-[1fr_1.4fr]">
             <div className="relative min-h-64">
               <img src="/images/editorial/offers.jpg" alt="" className="absolute inset-0 h-full w-full object-cover opacity-80" />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent lg:bg-gradient-to-r lg:from-transparent lg:to-slate-900" aria-hidden="true" />
               <div className="relative flex h-full flex-col justify-end p-8">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-300">Special offers</p>
-                <h2 id="offers" className="mt-2 font-display text-4xl font-semibold">The season edit</h2>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-300">{offersRail.eyebrow || 'Special offers'}</p>
+                <h2 id="offers" className="mt-2 font-display text-4xl font-semibold">{offersRail.title}</h2>
                 <p className="mt-2 text-white/80">{maxDiscount > 0 ? `Up to ${maxDiscount}% off selected pieces while stock lasts.` : 'Selected pieces at reduced prices.'}</p>
-                <Link to="/shop?flag=sale&sort=discount" className={buttonClasses('primary', 'md', 'mt-5 w-fit rounded-full')}>
+                <Link to={`/shop?${offersRail.query}`} className={buttonClasses('primary', 'md', 'mt-5 w-fit rounded-full')}>
                   Shop the sale <ArrowRight className="size-4" aria-hidden="true" />
                 </Link>
               </div>
@@ -151,11 +172,12 @@ export function HomePage() {
                 <Offer icon={Truck} title="Free shipping" body="On every order over $100." to="/shop" />
               </div>
               <div className="mt-6 [&_article_a]:text-white [&_article_p]:text-white/90">
-                <Carousel products={sale.data?.content?.slice(0, 8)} loading={sale.isPending} label="On sale" dark />
+                <Carousel products={sale.data?.content?.slice(0, 8)} loading={sale.isPending} label={offersRail.title} dark />
               </div>
             </div>
           </div>
         </section>
+        )}
 
         {/* 8. Build your outfit */}
         <section className="mt-20 grid items-center gap-8 overflow-hidden rounded-3xl bg-violet-100 lg:grid-cols-2" aria-labelledby="build-outfit">
@@ -185,15 +207,30 @@ export function HomePage() {
         </section>
 
         {/* 9. Recommended */}
-        <Section eyebrow="Picked for you" title="Recommended products" action={<SeeAll to="/shop?flag=featured">More picks</SeeAll>}>
-          {recommended.isPending ? <ProductGridSkeleton count={8} /> : (
-            <div className="grid grid-cols-2 gap-x-4 gap-y-8 md:grid-cols-4">
-              {recommended.data?.content.map((p) => <ProductCard key={p.id} product={p} />)}
-            </div>
-          )}
-        </Section>
+        {recommendedRail && (
+          <Section eyebrow={recommendedRail.eyebrow} title={recommendedRail.title} action={<SeeAll to={`/shop?${recommendedRail.query}`}>More picks</SeeAll>}>
+            {recommended.isPending ? <ProductGridSkeleton count={8} /> : (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-8 md:grid-cols-4">
+                {recommended.data?.content.map((p) => <ProductCard key={p.id} product={p} />)}
+              </div>
+            )}
+          </Section>
+        )}
+
+        {/* Extra collections added by admins */}
+        {extras.map((s) => <CollectionRail key={s.id} section={s} />)}
       </div>
     </>
+  );
+}
+
+function CollectionRail({ section }: { section: HomeSection }) {
+  const products = useProducts(`${section.query}&size=12`);
+  if (!products.isPending && !products.data?.content.length) return null;
+  return (
+    <Section eyebrow={section.eyebrow} title={section.title} action={<SeeAll to={`/shop?${section.query}`}>Shop the collection</SeeAll>}>
+      <Carousel products={products.data?.content} loading={products.isPending} label={section.title} />
+    </Section>
   );
 }
 
