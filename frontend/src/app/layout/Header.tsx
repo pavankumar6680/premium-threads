@@ -1,15 +1,16 @@
 import clsx from 'clsx';
-import { Boxes, Heart, LogOut, Package, Search, ShoppingCart, UserRound } from 'lucide-react';
+import { Boxes, Heart, LayoutDashboard, LogOut, Package, Search, ShoppingCart, UserRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Link, NavLink, useNavigate, useSearchParams } from 'react-router';
 import { Logo } from '../../components/Logo';
 import { Button, buttonClasses } from '../../components/ui/Button';
-import { useCurrentUser, useLogout } from '../../features/auth/hooks';
+import { useCurrentUser, useHasRole, useLogout } from '../../features/auth/hooks';
 import { useCart } from '../../features/cart/api';
 
 export function Header() {
   const { data: user, isPending } = useCurrentUser();
   const logout = useLogout();
+  const isAdmin = useHasRole('ADMIN');
   const navigate = useNavigate();
 
   const onLogout = () => {
@@ -43,15 +44,16 @@ export function Header() {
             <div className="h-9 w-40 animate-pulse rounded-lg bg-slate-100" aria-hidden="true" />
           ) : user ? (
             <>
+              {isAdmin && <IconLink to="/admin" label="Store admin" icon={LayoutDashboard} alwaysVisible />}
               <IconLink to="/wishlist" label="Wishlist" icon={Heart} />
               <IconLink to="/bundles" label="My bundles" icon={Boxes} />
               <IconLink to="/orders" label="My orders" icon={Package} />
               <CartLink />
-              <Link to="/account" className={buttonClasses('ghost', 'sm')}>
+              <Link to="/account" className={buttonClasses('ghost', 'sm')} aria-label={`Account: ${user.fullName}`}>
                 <UserRound className="size-4" aria-hidden="true" />
                 <span className="hidden max-w-[8rem] truncate lg:inline">{user.fullName}</span>
               </Link>
-              <Button variant="secondary" size="sm" onClick={onLogout} isLoading={logout.isPending}>
+              <Button variant="secondary" size="sm" onClick={onLogout} aria-label="Sign out" isLoading={logout.isPending}>
                 <LogOut className="size-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Sign out</span>
               </Button>
@@ -61,7 +63,7 @@ export function Header() {
               <Link to="/login" className={buttonClasses('ghost', 'sm')}>
                 Sign in
               </Link>
-              <Link to="/register" className={buttonClasses('primary', 'sm', 'hidden sm:inline-flex')}>
+              <Link to="/register" className={buttonClasses('primary', 'sm', 'max-sm:hidden')}>
                 Create account
               </Link>
             </>
@@ -101,9 +103,10 @@ function SearchBox({ className }: { className?: string }) {
   );
 }
 
-function IconLink({ to, label, icon: Icon }: { to: string; label: string; icon: typeof Heart }) {
+/** Secondary shortcuts are hidden on phones (max-sm:hidden, since buttonClasses already sets a display value). */
+function IconLink({ to, label, icon: Icon, alwaysVisible = false }: { to: string; label: string; icon: typeof Heart; alwaysVisible?: boolean }) {
   return (
-    <Link to={to} className={buttonClasses('ghost', 'sm', 'hidden px-2 sm:inline-flex')} aria-label={label} title={label}>
+    <Link to={to} className={buttonClasses('ghost', 'sm', alwaysVisible ? 'px-2' : 'px-2 max-sm:hidden')} aria-label={label} title={label}>
       <Icon className="size-5" aria-hidden="true" />
     </Link>
   );

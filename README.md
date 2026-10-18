@@ -67,6 +67,22 @@ single checkout.
   simulated payment exactly once (row-locked).
 - **Addresses**: an address book with one enforced default per user.
 
+- **Store admin** (`/admin`, ADMIN role):
+  - **Dashboard**: revenue with trend, daily revenue chart, orders by status, best sellers, low stock,
+    shopping goals by template, and recommendation-engine health (runs, "no bundle possible" share,
+    p95 time).
+  - **Products**: create and edit products and their specifications (validated against the category's
+    attribute definitions), adjust stock inline, take products off sale. Concurrent edits are detected
+    (optimistic locking).
+  - **Orders**: ship, mark delivered, or cancel with restock and refund.
+  - **Categories**: add categories and specifications without code changes.
+  - **Compatibility rules**: create and edit rules, and preview how many product pairs a rule would
+    block before saving it.
+  - **Goal templates**: items, usage options and interpreter keywords.
+  - **Activity log**: every admin change, who made it and when.
+- **Rate limiting**: per user (or per IP when anonymous) with Bucket4j. Sign-in, AI calls, recommendation
+  runs and checkout have tighter limits; a limited request gets `429` with `Retry-After`.
+
 All brands and products are fictional. Product photos are not included, so each category has an
 illustrated tile; real images can be attached through `product_images`.
 
@@ -150,6 +166,7 @@ cookie value in an `X-XSRF-TOKEN` header on every `POST/PUT/PATCH/DELETE`.
 ```bash
 cd backend && ./mvnw test      # unit + integration tests on a real (embedded) PostgreSQL + module boundary check
 cd frontend && npm test        # component and API-client tests (Vitest + MSW)
+cd frontend && npm run e2e     # end-to-end purchase + fulfilment in a real browser (Playwright, installed Edge)
 cd frontend && npm run build   # type-check + production build
 ```
 
@@ -197,5 +214,5 @@ buildmybundle/
 | 4. Recommendations | Branch-and-bound budget optimizer, compatibility engine, 3 tiers | ✅ Done |
 | 5. Bundle builder | Replace / lock / remove items, live totals, saved bundles | ✅ Done |
 | 6. AI features | Ollama via Spring AI with deterministic fallback | ✅ Done |
-| 7. Admin and testing | Admin dashboard, security and E2E tests | ⏳ |
+| 7. Admin and testing | Admin dashboard, security and E2E tests | ✅ Done |
 | 8. Deployment | Production configuration and final docs | ⏳ |

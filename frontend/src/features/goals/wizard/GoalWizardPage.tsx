@@ -133,12 +133,14 @@ function GoalWizard({ initial, template, categories, analysis }: {
           <Button type="button" variant="ghost" onClick={() => setStep((s) => s - 1)} disabled={step === 0}>
             <ChevronLeft className="size-4" aria-hidden="true" /> Back
           </Button>
+          {/* Distinct keys: if React reused one <button> and switched its type to "submit" while the Continue
+              click is still being dispatched, the browser would submit the form and skip the review step. */}
           {step < STEPS.length - 1 ? (
-            <Button type="button" onClick={next}>
+            <Button key="continue" type="button" onClick={next}>
               Continue <ChevronRight className="size-4" aria-hidden="true" />
             </Button>
           ) : (
-            <Button type="submit" size="lg" isLoading={createGoal.isPending}>
+            <Button key="create" type="submit" size="lg" isLoading={createGoal.isPending}>
               <Check className="size-5" aria-hidden="true" /> Create my goal
             </Button>
           )}

@@ -1,4 +1,6 @@
+import { lazy, Suspense } from 'react';
 import { Route, Routes } from 'react-router';
+import { PageSpinner } from '../components/ui/Spinner';
 import { AccountPage } from '../features/account/AccountPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import { RegisterPage } from '../features/auth/RegisterPage';
@@ -19,6 +21,8 @@ import { WishlistPage } from '../features/wishlist/WishlistPage';
 import { HomePage } from '../pages/HomePage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 import { RootLayout } from './layout/RootLayout';
+
+const AdminApp = lazy(() => import('../features/admin/AdminApp'));
 
 export function AppRoutes() {
   return (
@@ -42,6 +46,16 @@ export function AppRoutes() {
           <Route path="orders/:id" element={<OrderDetailPage />} />
           <Route path="wishlist" element={<WishlistPage />} />
           <Route path="bundles" element={<MyBundlesPage />} />
+        </Route>
+        <Route element={<RequireAuth role="ADMIN" />}>
+          <Route
+            path="admin/*"
+            element={
+              <Suspense fallback={<PageSpinner />}>
+                <AdminApp />
+              </Suspense>
+            }
+          />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Route>

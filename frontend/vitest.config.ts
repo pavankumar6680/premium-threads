@@ -1,4 +1,4 @@
-import { defineConfig, mergeConfig } from 'vitest/config';
+import { configDefaults, defineConfig, mergeConfig } from 'vitest/config';
 import viteConfig from './vite.config.ts';
 
 export default mergeConfig(
@@ -9,6 +9,7 @@ export default mergeConfig(
       setupFiles: ['./src/test/setup.ts'],
       css: false,
       restoreMocks: true,
+      exclude: [...configDefaults.exclude, 'e2e/**'],
     },
   }),
 );

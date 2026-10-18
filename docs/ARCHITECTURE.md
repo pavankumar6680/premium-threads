@@ -150,6 +150,9 @@ substructure, so branch and bound is the general solver.
 - Login errors never reveal whether an account exists.
 - Admin bootstrap credentials come from environment variables, never from migrations.
 - Prices and totals are computed server-side only; inventory checked transactionally at checkout.
+- Rate limiting (Bucket4j token buckets, per user or per IP; sign-in always per IP): 10/min for sign-in and
+  registration, 10/min for AI calls, 30/min for recommendation runs, 10/min for checkout, 300/min otherwise.
+  Configurable through `RATE_LIMIT_*`. Buckets are in memory per instance (Redis would be the multi-node step).
 
 ## 7. Implementation notes (Phase 2)
 
@@ -286,7 +289,33 @@ Complexity is `O(K^C)` in the worst case; on the seed catalog, real goals explor
 - **The engine never uses AI**: products, prices, compatibility and per-item explanations stay deterministic.
 - **Tests**: the model is replaced by a scripted fake (`AiIntegrationTest`), so CI needs no Ollama.
 
-## 12. Testing strategy
+## 12. Implementation notes (Phase 7)
+
+- **Admin endpoints live in the module that owns the data**: catalog (`/admin/products`, `/admin/categories`),
+  orders (`/admin/orders`), compatibility (`/admin/compatibility-rules`), goals (`/admin/goal-templates`).
+  Cross-module needs go through public APIs: `UserDirectory` (auth) gives order screens the customer's name,
+  `ProductCatalog.attributeKeysByCategory()` lets rule validation check attributes.
+- **Product edits**: attribute values are validated against the category's definitions (type, single vs list
+  values), because filters and compatibility rules read them. Updates carry the version they were based on;
+  a stale version gets `409 STALE_PRODUCT` instead of silently overwriting another admin's change. Slugs are
+  generated once and never change, so storefront links stay valid.
+- **Order fulfilment**: PAID → SHIPPED → DELIVERED, and PAID → CANCELLED (staff cancel restocks and refunds
+  exactly like a customer cancel). Transitions take a row lock.
+- **Rule preview**: evaluates an unsaved rule against every active product pair it applies to and reports
+  how many it would block, with examples, so a typo cannot silently empty a category.
+- **Audit log**: `admin_audit_log` (actor, action, entity, JSON details) is written in the same transaction
+  as the change.
+- **Analytics** (`analytics` module): a read-only reporting model that aggregates over several modules'
+  tables in SQL. This is the one deliberate exception to table ownership; it never writes, and no module
+  depends on it.
+- **Frontend**: the admin area is a lazily loaded chunk (shoppers never download it), and vendor libraries
+  are split into separately cached chunks.
+- **End-to-end test** (`frontend/e2e`, Playwright on the installed Edge): sign up, build a goal with the
+  wizard, add the Balanced bundle to the cart, check out, then sign in as staff and ship the order.
+  It found a real bug that jsdom could not: the wizard's Continue and Create buttons shared one DOM
+  element, so the browser submitted the form on the last Continue and skipped the review step.
+
+## 13. Testing strategy
 
 - Backend unit tests (JUnit 5 + Mockito) for services, the engine and rule evaluators, with property-style
   tests (no result exceeds budget; every pair compatible) over randomized catalogs.
@@ -294,3 +323,4 @@ Complexity is `O(K^C)` in the worst case; on the seed catalog, real goals explor
   security filter chain, using a cookie-jar test client that performs the real CSRF flow.
 - `ModularityTest` verifies module boundaries.
 - Frontend: Vitest + Testing Library + MSW, rendering the real route tree.
+- End-to-end: Playwright against the real stack (`npm run e2e`); it starts the backend and Vite if needed.
