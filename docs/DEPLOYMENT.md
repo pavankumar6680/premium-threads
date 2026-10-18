@@ -1,4 +1,4 @@
-# Deploying BuildMyBundle
+# Deploying Premium Threads
 
 The production stack runs as three containers (four with optional local AI), described in
 [`docker-compose.yml`](../docker-compose.yml):

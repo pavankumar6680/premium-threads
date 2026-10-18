@@ -1,5 +1,5 @@
 /**
- * Thin fetch wrapper for the BuildMyBundle API.
+ * Thin fetch wrapper for the Premium Threads (BuildMyBundle) API.
  *
  * - Sends the session cookie (same origin via the Vite/nginx proxy).
  * - CSRF: before a state-changing request it makes sure the XSRF-TOKEN cookie exists and echoes it in

@@ -1,4 +1,4 @@
-# BuildMyBundle: production-style stack.
+# Premium Threads (BuildMyBundle codebase): production-style stack.
 #
 #   cp .env.example .env          # then set the passwords
 #   docker compose up -d --build  # -> http://localhost:3000 (HTTP_PORT)

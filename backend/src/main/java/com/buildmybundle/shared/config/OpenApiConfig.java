@@ -11,7 +11,7 @@ class OpenApiConfig {
 
 	@Bean
 	OpenAPI buildMyBundleOpenApi() {
-		return new OpenAPI().info(new Info().title("BuildMyBundle API")
+		return new OpenAPI().info(new Info().title("Premium Threads API")
 			.version("v1")
 			.description("Goal-based e-commerce: catalog, bundles, recommendations, cart and orders. "
 					+ "Authentication uses a session cookie; mutating requests require the X-XSRF-TOKEN header "

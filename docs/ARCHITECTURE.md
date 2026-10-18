@@ -1,6 +1,6 @@
-# BuildMyBundle — Architecture
+# Premium Threads — Architecture
 
-BuildMyBundle is a multi-brand fashion marketplace with goal-based shopping. A customer describes an occasion
+Premium Threads (codebase: BuildMyBundle) is a multi-brand fashion marketplace with goal-based shopping. A customer describes an occasion
 ("a stylish casual outfit for a weekend party under $200, size M, in navy"). The system assembles a complete,
 coordinated, budget-optimized outfit from the real catalog: every piece is in stock in the wearer's size, and
 pieces are mixed across brands. The customer can customize the outfit and buy it in one checkout.

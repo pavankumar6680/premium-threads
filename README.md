@@ -1,7 +1,7 @@
-# BuildMyBundle
+# Premium Threads
 
 **A premium multi-brand fashion marketplace that builds complete outfits.** Shop clothing and accessories
-from 15 brands, or tell BuildMyBundle the occasion, your budget, sizes and favorite colors ("a stylish casual
+from 15 brands, or tell Premium Threads the occasion, your budget, sizes and favorite colors ("a stylish casual
 outfit for a weekend party under $200, size M") and it puts together a complete look from different brands
 that works together. Every piece comes in your size and in stock, and the whole outfit goes into the cart in one step.
 

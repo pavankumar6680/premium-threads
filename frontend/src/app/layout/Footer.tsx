@@ -54,7 +54,7 @@ export function Footer() {
         <div>
           <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-white">Customer support</h2>
           <ul className="mt-4 space-y-2.5 text-sm">
-            <li className="flex items-center gap-2"><Mail className="size-4" aria-hidden="true" /> support@buildmybundle.example</li>
+            <li className="flex items-center gap-2"><Mail className="size-4" aria-hidden="true" /> support@premiumthreads.example</li>
             <li className="flex items-center gap-2"><Phone className="size-4" aria-hidden="true" /> +1 (555) 010-2030 · Mon–Fri 9–6</li>
             <li className="flex items-center gap-2"><MessageCircle className="size-4" aria-hidden="true" /> Live chat in your account</li>
           </ul>
@@ -73,7 +73,7 @@ export function Footer() {
       </div>
       <div className="border-t border-white/10">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-5 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} BuildMyBundle. A portfolio project; payments are simulated.</p>
+          <p>© {new Date().getFullYear()} Premium Threads. A portfolio project; payments are simulated.</p>
           <p>Demo store: products, prices and stock are fictional sample data, not affiliated with or endorsed by the brands named.</p>
         </div>
       </div>

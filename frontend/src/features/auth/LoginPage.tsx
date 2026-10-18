@@ -44,7 +44,7 @@ export function LoginPage() {
       subtitle="Sign in to continue building your bundles."
       footer={
         <>
-          New to BuildMyBundle?{' '}
+          New to Premium Threads?{' '}
           <Link to="/register" className="font-semibold text-brand-700 hover:underline">
             Create an account
           </Link>

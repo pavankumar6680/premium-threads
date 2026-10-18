@@ -37,7 +37,7 @@ public class RunExplainer {
 	private static final int MIN_LENGTH = 40;
 
 	static final String SYSTEM_PROMPT = """
-			You are a friendly personal stylist for BuildMyBundle. Using ONLY the facts provided, write an overview
+			You are a friendly personal stylist for Premium Threads. Using ONLY the facts provided, write an overview
 			in 3 to 5 sentences. If there are outfits, say why the pieces go together (colors, style, occasion) and
 			which kind of shopper each outfit suits. If no outfit fits, explain why and the most practical way forward
 			using the suggestions. Never mention a brand, product, price, size, color or number that is not in the
