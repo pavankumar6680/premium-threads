@@ -119,8 +119,8 @@ export function useBundleEdits(bundleId: string) {
   return {
     replace: edit(({ category, productId }: { category: string; productId: number }) =>
       api.put<Bundle>(`/bundles/${bundleId}/items/${category}`, { productId })),
-    update: edit(({ category, quantity, locked }: { category: string; quantity?: number; locked?: boolean }) =>
-      api.patch<Bundle>(`/bundles/${bundleId}/items/${category}`, { quantity, locked })),
+    update: edit(({ category, quantity, locked, variantId }: { category: string; quantity?: number; locked?: boolean; variantId?: number }) =>
+      api.patch<Bundle>(`/bundles/${bundleId}/items/${category}`, { quantity, locked, variantId })),
     remove: edit((category: string) => api.delete<Bundle>(`/bundles/${bundleId}/items/${category}`)),
     add: edit((productId: number) => api.post<Bundle>(`/bundles/${bundleId}/items`, { productId })),
     budget: edit((budget: number) => api.put<Bundle>(`/bundles/${bundleId}/budget`, { budget })),

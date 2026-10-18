@@ -29,18 +29,22 @@ public class CompatibilityService {
 
 	public List<Rule> activeRules() {
 		return jdbc.sql("""
-				SELECT r.code, s.slug AS source_slug, t.slug AS target_slug, r.operator, r.source_attr, r.target_attr,
+				SELECT r.code, coalesce(s.slug, '*') AS source_slug, t.slug AS target_slug, r.operator, r.source_attr, r.target_attr,
 				       r.rule_value, r.severity, r.label, r.message
 				FROM compatibility_rules r
-				JOIN categories s ON s.id = r.source_category_id
+				LEFT JOIN categories s ON s.id = r.source_category_id
 				LEFT JOIN categories t ON t.id = r.target_category_id
 				WHERE r.active
 				ORDER BY r.id
 				""")
-			.query((rs, n) -> new Rule(rs.getString("code"), rs.getString("source_slug"), rs.getString("target_slug"),
-					Operator.valueOf(rs.getString("operator")), rs.getString("source_attr"), rs.getString("target_attr"),
-					rs.getString("rule_value"), Severity.valueOf(rs.getString("severity")), rs.getString("label"),
-					rs.getString("message")))
+			.query((rs, n) -> {
+				Operator operator = Operator.valueOf(rs.getString("operator"));
+				// a pairwise rule without a target category applies to every category
+				String target = rs.getString("target_slug") == null && operator.pairwise() ? Rule.ANY : rs.getString("target_slug");
+				return new Rule(rs.getString("code"), rs.getString("source_slug"), target, operator, rs.getString("source_attr"),
+						rs.getString("target_attr"), rs.getString("rule_value"), Severity.valueOf(rs.getString("severity")),
+						rs.getString("label"), rs.getString("message"));
+			})
 			.list();
 	}
 

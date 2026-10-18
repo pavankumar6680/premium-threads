@@ -38,6 +38,13 @@ export type TemplateDetail = {
   items: { category: CategoryOption; required: boolean; selectedByDefault: boolean; quantity: number; note: string | null }[];
 };
 
+export type Gender = 'MEN' | 'WOMEN';
+
+/** Who the outfit is for: wardrobe, sizes and preferred colors (all optional). */
+export type Fit = { gender: Gender | null; sizeAlpha: string | null; sizeWaist: string | null; colors: string[] };
+
+export const NO_FIT: Fit = { gender: null, sizeAlpha: null, sizeWaist: null, colors: [] };
+
 export type GoalAnalysis = {
   source: string;
   templateSlug: string | null;
@@ -49,6 +56,7 @@ export type GoalAnalysis = {
   preferredBrands: string[];
   matchedTerms: string[];
   clarifications: string[];
+  fit?: Fit | null;
 };
 
 export type Goal = {
@@ -64,6 +72,7 @@ export type Goal = {
   space: { widthCm: number | null; depthCm: number | null } | null;
   notes: string | null;
   createdAt: string;
+  fit?: Fit | null;
   estimate: {
     essentialsMinimum: number;
     selectedMinimum: number;
@@ -94,6 +103,7 @@ export type CreateGoalInput = {
   usageTags: string[];
   space: { widthCm: number | null; depthCm: number | null } | null;
   notes: string | null;
+  fit?: Fit | null;
 };
 
 export const goalKeys = {
@@ -155,16 +165,14 @@ export const kindLabels: Record<RequirementKind | 'SKIP', string> = {
   SKIP: 'Skip',
 };
 
-/** Product tags shown as usage options when a goal is not based on a template. */
+/** Styles offered as usage options when a goal is not based on a template (product tags). */
 export const generalUsageOptions = [
-  { tag: 'ergonomic', label: 'Ergonomic comfort' },
-  { tag: 'compact', label: 'Small space' },
-  { tag: 'wireless', label: 'Wireless' },
-  { tag: 'quiet', label: 'Quiet' },
-  { tag: 'portable', label: 'Portable' },
-  { tag: 'beginner', label: 'Beginner friendly' },
-  { tag: 'pro', label: 'Professional grade' },
+  { tag: 'casual', label: 'Casual' },
+  { tag: 'streetwear', label: 'Streetwear' },
+  { tag: 'formal', label: 'Formal' },
+  { tag: 'minimalist', label: 'Minimalist' },
+  { tag: 'party-wear', label: 'Party wear' },
 ];
 
-/** Categories where the available floor space matters. */
-export const SPACE_SENSITIVE_CATEGORIES = ['desks', 'benches', 'cardio-machines', 'exercise-mats'];
+/** Categories where the available floor space matters (none in a fashion catalog). */
+export const SPACE_SENSITIVE_CATEGORIES: string[] = [];

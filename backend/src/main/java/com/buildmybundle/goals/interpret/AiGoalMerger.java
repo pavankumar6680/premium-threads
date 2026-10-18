@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import com.buildmybundle.goals.GoalModels.Fit;
 import com.buildmybundle.goals.GoalModels.RequirementKind;
 import com.buildmybundle.goals.interpret.GoalAnalysis.Item;
 import com.buildmybundle.goals.interpret.InterpreterVocabulary.TemplateItem;
@@ -134,7 +135,19 @@ public final class AiGoalMerger {
 		return new GoalAnalysis(SOURCE, templateSlug,
 				template != null ? template.title() : RuleBasedGoalInterpreter.CUSTOM_TITLE, budget, rules.quality(),
 				itemList, List.copyOf(tags), rules.preferredBrands(), rules.matchedTerms(),
-				List.copyOf(new LinkedHashSet<>(questions)));
+				List.copyOf(new LinkedHashSet<>(questions)), fitFor(rules.fit(), templateSlug, vocabulary));
+	}
+
+	/**
+	 * Wardrobe, sizes and colors always come from the deterministic reading of the customer's own words, never
+	 * from the model; only the wardrobe of the template the merge settled on is added when the text was silent.
+	 */
+	private static Fit fitFor(Fit rules, String templateSlug, InterpreterVocabulary vocabulary) {
+		if (rules.gender() != null || templateSlug == null) {
+			return rules;
+		}
+		String gender = RuleBasedGoalInterpreter.wardrobeOfTemplate(templateSlug);
+		return new Fit(gender, rules.sizeAlpha(), rules.sizeWaist(), rules.colors());
 	}
 
 	/** True when a sentence of the text names the category (or its plural) without asking for it. */

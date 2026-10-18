@@ -78,6 +78,11 @@ public class ProductCatalog {
 		return catalog.brandNames();
 	}
 
+	/** Colors offered by active product variants (canonical spelling). */
+	public Set<String> colorNames() {
+		return catalog.colorNames();
+	}
+
 	/** Usage tags present on products. */
 	public Set<String> tags() {
 		return catalog.tags();

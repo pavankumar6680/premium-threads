@@ -17,8 +17,9 @@ public final class BundleModels {
 		BUDGET, BALANCED, PREMIUM, CUSTOM
 	}
 
-	public record NewItem(Long productId, Long categoryId, int quantity, BigDecimal unitPrice, boolean optional,
-			String explanation) {
+	/** @param variantId the chosen size and color, or null when the shopper still has to pick a size */
+	public record NewItem(Long productId, Long variantId, Long categoryId, int quantity, BigDecimal unitPrice,
+			boolean optional, String explanation) {
 	}
 
 	public record NewBundle(UUID goalId, UUID runId, Long userId, BundleTier tier, String name, BigDecimal budget,
@@ -33,10 +34,15 @@ public final class BundleModels {
 	public record ItemView(Long productId, String slug, String sku, String name, String brand, String categorySlug,
 			String categoryName, int quantity, BigDecimal unitPrice, BigDecimal currentPrice, BigDecimal lineTotal,
 			boolean optional, boolean locked, String explanation, BigDecimal ratingAvg, int ratingCount,
-			int availableQuantity, boolean available) {
+			int availableQuantity, boolean available, ChosenVariant variant, boolean needsSize) {
+	}
+
+	/** The size and color chosen for a bundle item. */
+	public record ChosenVariant(Long id, String size, String color, String colorHex, int availableQuantity) {
 	}
 
 	/**
+	 * @param purchasable every item available, every size chosen, and no blocking incompatibility
 	 * @param totalPrice total when the bundle was last changed
 	 * @param currentTotal total at today's prices
 	 * @param compatibility live re-check of every rule against the current catalog data

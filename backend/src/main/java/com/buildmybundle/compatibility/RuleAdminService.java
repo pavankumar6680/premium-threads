@@ -29,7 +29,9 @@ import org.springframework.transaction.annotation.Transactional;
  * Compatibility rule administration. Rules are data, so a new rule takes effect on the next check or
  * recommendation without a deployment. Because a wrong rule can block large parts of the catalog, rules are
  * validated against the categories' attribute definitions, and {@link #preview} shows how many active product
- * pairs a rule would reject before it is saved.
+ * pairs a rule would reject before it is saved. Pairwise rules may use {@link Rule#ANY} ("*") as a category to
+ * apply to every piece (e.g. "an outfit is for one wardrobe"), and may read the attributes the catalog derives
+ * for every product ({@link ProductFacts#DERIVED}).
  */
 @Service
 public class RuleAdminService {
@@ -70,10 +72,11 @@ public class RuleAdminService {
 	@Transactional(readOnly = true)
 	public List<AdminRule> list() {
 		return jdbc.sql("""
-				SELECT r.id, r.code, s.slug AS source_slug, t.slug AS target_slug, r.operator, r.source_attr,
-				       r.target_attr, r.rule_value, r.severity, r.label, r.message, r.active
+				SELECT r.id, r.code, coalesce(s.slug, '*') AS source_slug,
+				       CASE WHEN t.slug IS NULL AND r.target_attr IS NOT NULL THEN '*' ELSE t.slug END AS target_slug,
+				       r.operator, r.source_attr, r.target_attr, r.rule_value, r.severity, r.label, r.message, r.active
 				FROM compatibility_rules r
-				JOIN categories s ON s.id = r.source_category_id
+				LEFT JOIN categories s ON s.id = r.source_category_id
 				LEFT JOIN categories t ON t.id = r.target_category_id
 				ORDER BY r.id
 				""")
@@ -149,14 +152,19 @@ public class RuleAdminService {
 		Rule rule = new Rule(request.code(), request.sourceCategory(), request.targetCategory(), request.operator(),
 				request.sourceAttr(), blankToNull(request.targetAttr()), blankToNull(request.value()), request.severity(),
 				request.label(), request.message());
-		List<ProductFacts> sources = catalog.activeFactsInCategories(List.of(v.sourceId()));
+		List<ProductFacts> sources = catalog.activeFactsInCategories(v.sourceIds());
 		if (request.operator().pairwise()) {
-			List<ProductFacts> targets = catalog.activeFactsInCategories(List.of(v.targetId()));
+			List<ProductFacts> targets = catalog.activeFactsInCategories(v.targetIds());
 			int violating = 0;
 			int notApplicable = 0;
+			int evaluated = 0;
 			List<String> examples = new ArrayList<>();
 			for (ProductFacts s : sources) {
 				for (ProductFacts t : targets) {
+					if (s.id().equals(t.id()) || (rule.universal() && s.id() > t.id())) {
+						continue;
+					}
+					evaluated++;
 					Optional<Boolean> ok = CompatibilityChecker.evaluatePair(rule, s, t);
 					if (ok.isEmpty()) {
 						notApplicable++;
@@ -169,7 +177,6 @@ public class RuleAdminService {
 					}
 				}
 			}
-			int evaluated = sources.size() * targets.size();
 			return new RuleImpact(evaluated, violating, notApplicable, examples,
 					"%d of %d product pairs would be %s; %d pairs lack the attributes and are not affected."
 						.formatted(violating, evaluated, request.severity() == Severity.BLOCK ? "blocked" : "flagged",
@@ -194,7 +201,8 @@ public class RuleAdminService {
 
 	// ---------------------------------------------------------------- validation
 
-	private record Validated(Long sourceId, Long targetId) {
+	/** Category ids to store (null for "*") and the leaf categories the rule covers (for the preview). */
+	private record Validated(Long sourceId, Long targetId, List<Long> sourceIds, List<Long> targetIds) {
 	}
 
 	private Validated validate(RuleRequest r) {
@@ -203,33 +211,63 @@ public class RuleAdminService {
 			.filter(CategoryInfo::leaf)
 			.collect(Collectors.toMap(CategoryInfo::slug, CategoryInfo::id));
 		Map<String, Set<String>> keys = catalog.attributeKeysByCategory();
-		Long sourceId = leaves.get(r.sourceCategory());
-		if (sourceId == null) {
+		boolean pairwise = r.operator().pairwise();
+		boolean anySource = Rule.ANY.equals(r.sourceCategory());
+		if (anySource && !pairwise) {
+			throw invalid("sourceCategory", "Only rules between two pieces can apply to every category.");
+		}
+		Long sourceId = anySource ? null : leaves.get(r.sourceCategory());
+		if (!anySource && sourceId == null) {
 			throw invalid("sourceCategory", "Choose an existing product category.");
 		}
-		if (!keys.getOrDefault(r.sourceCategory(), Set.of()).contains(r.sourceAttr())) {
+		if (!attributesOf(r.sourceCategory(), keys).contains(r.sourceAttr())) {
 			throw invalid("sourceAttr", "'" + r.sourceAttr() + "' is not an attribute of " + r.sourceCategory() + ".");
 		}
 		Long targetId = null;
-		boolean needsTarget = r.operator().pairwise() || r.operator() == Operator.REQUIRES_CATEGORY_UNLESS;
-		if (needsTarget) {
+		boolean anyTarget = pairwise && Rule.ANY.equals(r.targetCategory());
+		boolean needsTarget = pairwise || r.operator() == Operator.REQUIRES_CATEGORY_UNLESS;
+		if (needsTarget && !anyTarget) {
 			targetId = r.targetCategory() == null ? null : leaves.get(r.targetCategory());
 			if (targetId == null) {
 				throw invalid("targetCategory", "This kind of rule needs a target category.");
 			}
 		}
-		else if (r.targetCategory() != null && !r.targetCategory().isBlank()) {
+		else if (!needsTarget && r.targetCategory() != null && !r.targetCategory().isBlank()) {
 			throw invalid("targetCategory", "Space rules compare a product with the customer's room, not another category.");
 		}
-		if (r.operator().pairwise()) {
-			if (r.targetAttr() == null || !keys.getOrDefault(r.targetCategory(), Set.of()).contains(r.targetAttr())) {
+		if (pairwise) {
+			if (r.targetAttr() == null || !attributesOf(r.targetCategory(), keys).contains(r.targetAttr())) {
 				throw invalid("targetAttr", "Choose an attribute of " + r.targetCategory() + ".");
 			}
 		}
 		if (r.operator() == Operator.REQUIRES_CATEGORY_UNLESS && (r.value() == null || r.value().isBlank())) {
 			throw invalid("value", "Enter the value that makes the companion product unnecessary (e.g. USB).");
 		}
-		return new Validated(sourceId, targetId);
+		if (r.operator() == Operator.MAX_DIFFERENCE) {
+			try {
+				if (r.value() == null || Double.parseDouble(r.value().trim()) < 0) {
+					throw new NumberFormatException();
+				}
+			}
+			catch (NumberFormatException e) {
+				throw invalid("value", "Enter the largest allowed difference, e.g. 2.");
+			}
+		}
+		List<Long> all = List.copyOf(leaves.values());
+		return new Validated(sourceId, targetId, sourceId == null ? all : List.of(sourceId),
+				targetId == null ? all : List.of(targetId));
+	}
+
+	/** Attributes a rule may read for a category ("*": any category's), including the derived ones. */
+	private static Set<String> attributesOf(String category, Map<String, Set<String>> keys) {
+		Set<String> result = new java.util.HashSet<>(ProductFacts.DERIVED);
+		if (Rule.ANY.equals(category)) {
+			keys.values().forEach(result::addAll);
+		}
+		else if (category != null) {
+			result.addAll(keys.getOrDefault(category, Set.of()));
+		}
+		return result;
 	}
 
 	private static Map<String, Object> params(RuleRequest r, Validated v) {
@@ -240,7 +278,8 @@ public class RuleAdminService {
 		params.put("operator", r.operator().name());
 		params.put("sourceAttr", r.sourceAttr());
 		params.put("targetAttr", r.operator().pairwise() ? r.targetAttr() : null);
-		params.put("value", r.operator() == Operator.REQUIRES_CATEGORY_UNLESS ? r.value().trim() : null);
+		params.put("value", r.operator() == Operator.REQUIRES_CATEGORY_UNLESS || r.operator() == Operator.MAX_DIFFERENCE
+				? r.value().trim() : null);
 		params.put("severity", r.severity().name());
 		params.put("label", r.label().trim());
 		params.put("message", r.message().trim());

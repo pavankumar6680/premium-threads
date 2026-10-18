@@ -409,16 +409,22 @@ public class ProductQueries {
 	public record PriceRow(Long productId, Long categoryId, BigDecimal price, String brand) {
 	}
 
-	public record SummaryWithCategory(ProductSummary summary, Long categoryId) {
+	/** @param outfitSlot the category's slot (TOP, BOTTOM, FULL, LAYER, ACCESSORY) or null */
+	public record SummaryWithCategory(ProductSummary summary, Long categoryId, String gender, String outfitSlot) {
 	}
+
+	private static final String FACT_COLUMNS = ", p.category_id, p.gender, c.outfit_slot";
+
+	private static final RowMapper<SummaryWithCategory> WITH_CATEGORY = (rs, n) -> new SummaryWithCategory(
+			SUMMARY.mapRow(rs, n), rs.getLong("category_id"), rs.getString("gender"), rs.getString("outfit_slot"));
 
 	public List<SummaryWithCategory> summariesWithCategory(Collection<Long> productIds) {
 		if (productIds.isEmpty()) {
 			return List.of();
 		}
-		return jdbc.sql("SELECT " + SUMMARY_COLUMNS + ", p.category_id" + FROM_PRODUCTS + "WHERE p.id IN (:ids)")
+		return jdbc.sql("SELECT " + SUMMARY_COLUMNS + FACT_COLUMNS + FROM_PRODUCTS + "WHERE p.id IN (:ids)")
 			.param("ids", productIds)
-			.query((rs, n) -> new SummaryWithCategory(SUMMARY.mapRow(rs, n), rs.getLong("category_id")))
+			.query(WITH_CATEGORY)
 			.list();
 	}
 
@@ -427,10 +433,10 @@ public class ProductQueries {
 			return List.of();
 		}
 		return jdbc
-			.sql("SELECT " + SUMMARY_COLUMNS + ", p.category_id" + FROM_PRODUCTS
+			.sql("SELECT " + SUMMARY_COLUMNS + FACT_COLUMNS + FROM_PRODUCTS
 					+ "WHERE p.status = 'ACTIVE' AND p.category_id IN (:ids) ORDER BY p.id")
 			.param("ids", categoryIds)
-			.query((rs, n) -> new SummaryWithCategory(SUMMARY.mapRow(rs, n), rs.getLong("category_id")))
+			.query(WITH_CATEGORY)
 			.list();
 	}
 
@@ -472,6 +478,37 @@ public class ProductQueries {
 		return jdbc.sql("SELECT DISTINCT brand FROM products WHERE status = 'ACTIVE' ORDER BY brand")
 			.query(String.class)
 			.list();
+	}
+
+	public List<String> colorNames() {
+		return jdbc.sql("""
+				SELECT DISTINCT v.color FROM product_variants v JOIN products p ON p.id = v.product_id
+				WHERE v.active AND p.status = 'ACTIVE' AND v.color <> 'Standard' ORDER BY v.color
+				""").query(String.class).list();
+	}
+
+	/** One row per color sold, with a representative swatch. */
+	public List<CatalogModels.ColorRef> colors() {
+		return jdbc.sql("""
+				SELECT v.color, min(v.color_hex) AS hex, min(v.color_family) AS family
+				FROM product_variants v JOIN products p ON p.id = v.product_id
+				WHERE v.active AND p.status = 'ACTIVE' AND v.color <> 'Standard'
+				GROUP BY v.color ORDER BY v.color
+				""").query((rs, n) -> new CatalogModels.ColorRef(rs.getString("color"), rs.getString("hex"),
+				rs.getString("family"))).list();
+	}
+
+	/** Size scale → distinct sizes sold (unordered). */
+	public Map<String, List<String>> sizesByScale() {
+		Map<String, List<String>> result = new java.util.LinkedHashMap<>();
+		jdbc.sql("""
+				SELECT DISTINCT c.size_scale, v.size FROM product_variants v
+				JOIN products p ON p.id = v.product_id JOIN categories c ON c.id = p.category_id
+				WHERE v.active AND p.status = 'ACTIVE' AND c.size_scale IN ('ALPHA', 'WAIST')
+				""").query(rs -> {
+			result.computeIfAbsent(rs.getString("size_scale"), k -> new java.util.ArrayList<>()).add(rs.getString("size"));
+		});
+		return result;
 	}
 
 	public List<String> tags() {

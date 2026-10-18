@@ -32,7 +32,13 @@ export type BundleItem = {
   ratingCount: number;
   availableQuantity: number;
   available: boolean;
+  /** the size and color chosen for this piece */
+  variant: ChosenVariant | null;
+  /** sold in several sizes and none chosen yet: the outfit cannot be bought until one is */
+  needsSize: boolean;
 };
+
+export type ChosenVariant = { id: number; size: string; color: string; colorHex: string | null; availableQuantity: number };
 
 export type Bundle = {
   id: string;

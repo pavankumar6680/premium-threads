@@ -37,6 +37,12 @@ public final class CompatibilityChecker {
 			case EQUALS -> s.stream().anyMatch(t::contains);
 			case LIST_CONTAINS -> t.containsAll(s);
 			case LIST_INTERSECTS -> s.stream().anyMatch(t::contains);
+			case LIST_DISJOINT -> s.stream().noneMatch(t::contains);
+			case MAX_DIFFERENCE -> {
+				Optional<Double> a = source.number(rule.sourceAttr());
+				Optional<Double> b = target.number(rule.targetAttr());
+				yield a.isEmpty() || b.isEmpty() || Math.abs(a.get() - b.get()) <= Double.parseDouble(rule.value());
+			}
 			case LTE -> {
 				Optional<Double> a = source.number(rule.sourceAttr());
 				Optional<Double> b = target.number(rule.targetAttr());
@@ -135,6 +141,10 @@ public final class CompatibilityChecker {
 				default -> {
 					for (ProductFacts source : products) {
 						for (ProductFacts target : products) {
+							// a product is never compared with itself; universal rules check each pair once
+							if (source == target || (rule.universal() && source.id() > target.id())) {
+								continue;
+							}
 							if (matches(rule.sourceCategory(), source) && matches(rule.targetCategory(), target)) {
 								evaluatePair(rule, source, target).ifPresent(
 										ok -> record(ok, rule, List.of(source.id(), target.id()), passed, violations));
@@ -158,6 +168,6 @@ public final class CompatibilityChecker {
 	}
 
 	private static boolean matches(String categorySlug, ProductFacts product) {
-		return categorySlug != null && categorySlug.equals(product.categorySlug());
+		return Rule.matchesCategory(categorySlug, product.categorySlug());
 	}
 }

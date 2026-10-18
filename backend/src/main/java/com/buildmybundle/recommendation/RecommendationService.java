@@ -14,11 +14,14 @@ import com.buildmybundle.bundles.BundleModels.BundleTier;
 import com.buildmybundle.bundles.BundleModels.NewBundle;
 import com.buildmybundle.bundles.BundleModels.NewItem;
 import com.buildmybundle.bundles.BundleService;
+import com.buildmybundle.bundles.OutfitFit;
 import com.buildmybundle.catalog.CategoryInfo;
 import com.buildmybundle.catalog.ProductCatalog;
 import com.buildmybundle.catalog.ProductFacts;
+import com.buildmybundle.catalog.VariantSummary;
 import com.buildmybundle.compatibility.CompatibilityModels.Space;
 import com.buildmybundle.compatibility.CompatibilityService;
+import com.buildmybundle.goals.GoalModels.Fit;
 import com.buildmybundle.goals.GoalModels.GoalSnapshot;
 import com.buildmybundle.goals.GoalModels.RequirementKind;
 import com.buildmybundle.goals.GoalService;
@@ -96,10 +99,11 @@ public class RecommendationService {
 			saveMessages(runId, "SUGGESTION", result.infeasibility().suggestions());
 		}
 		for (TierBundle bundle : result.bundles()) {
+			List<NewItem> items = items(bundle, goal.fit());
 			bundles.createRecommended(new NewBundle(goalId, runId, userId, BundleTier.valueOf(bundle.tier().name()),
 					bundle.tier().displayName, goal.budget(), BigDecimal.valueOf(bundle.solution().costCents(), 2),
 					BigDecimal.valueOf(bundle.solution().score()).setScale(4, java.math.RoundingMode.HALF_UP),
-					bundle.summary(), items(bundle)));
+					summary(bundle, items, catalog), items));
 		}
 		log.info("Recommendation run {} for goal {}: {} bundle(s), {} nodes in {} ms", runId, goalId,
 				result.bundles().size(), result.nodes(), result.durationMs());
@@ -158,25 +162,51 @@ public class RecommendationService {
 			.filter(r -> r.kind() == RequirementKind.OWNED)
 			.map(r -> new OwnedCategory(r.categorySlug(), categories.get(r.categoryId()).name()))
 			.toList();
-		Map<String, List<ProductFacts>> candidates = catalog
-			.activeFactsInCategories(needs.stream().map(Need::categoryId).toList())
-			.stream()
-			.collect(Collectors.groupingBy(ProductFacts::categorySlug, LinkedHashMap::new, Collectors.toList()));
+		Map<String, List<ProductFacts>> candidates = OutfitCandidates.load(catalog,
+				needs.stream().map(Need::categoryId).toList(), categories, goal.fit(), java.util.Set.of());
 		Map<String, String> names = categories.values()
 			.stream()
 			.collect(Collectors.toMap(CategoryInfo::slug, CategoryInfo::name));
 		return new Problem(needs, candidates, compatibility.activeRules(), goal.budget().movePointRight(2).longValueExact(),
 				new Space(goal.spaceWidthCm(), goal.spaceDepthCm()), owned,
-				new ScoringContext(goal.contextTag(), goal.usageTags(), goal.preferredBrands()), names);
+				OutfitCandidates.context(goal), names);
 	}
 
-	private static List<NewItem> items(TierBundle bundle) {
-		return bundle.solution()
-			.chosen()
+	/**
+	 * The bundle's items with a size and color chosen per piece (see {@link OutfitFit}); the explanation says
+	 * which option was picked so the shopper knows what they get.
+	 */
+	private List<NewItem> items(TierBundle bundle, Fit fit) {
+		Map<Long, CategoryInfo> categories = catalog.categories()
 			.stream()
-			.map((Pick p) -> new NewItem(p.product().id(), p.need().categoryId(), p.need().quantity(),
-					p.product().product().price(), !p.need().required(), bundle.explanations().get(p.product().id())))
-			.toList();
+			.collect(Collectors.toMap(CategoryInfo::id, Function.identity()));
+		List<Pick> chosen = bundle.solution().chosen();
+		Map<Long, VariantSummary> variants = OutfitFit.chooseVariants(chosen.stream()
+			.map(p -> new OutfitFit.Piece(p.product().id(), categories.get(p.need().categoryId()).outfitSlot(),
+					categories.get(p.need().categoryId()).sizeScale(), p.need().quantity(),
+					catalog.variantsOf(p.product().id())))
+			.toList(), fit);
+		return chosen.stream().map(p -> {
+			VariantSummary v = variants.get(p.product().id());
+			String explanation = bundle.explanations().get(p.product().id());
+			if (v != null && !"One size".equalsIgnoreCase(v.size())) {
+				explanation = explanation + " In stock in your size (" + v.size() + "), shown in " + v.color() + ".";
+			}
+			else if (v != null && !"Standard".equals(v.color())) {
+				explanation = explanation + " Shown in " + v.color() + ".";
+			}
+			return new NewItem(p.product().id(), v == null ? null : v.id(), p.need().categoryId(), p.need().quantity(),
+					p.product().product().price(), !p.need().required(), explanation);
+		}).toList();
+	}
+
+	/** The bundle summary plus one sentence on the outfit's colors. */
+	private static String summary(TierBundle bundle, List<NewItem> items, ProductCatalog catalog) {
+		List<VariantSummary> variants = new ArrayList<>(catalog
+			.findVariants(items.stream().map(NewItem::variantId).filter(java.util.Objects::nonNull).toList())
+			.values());
+		String palette = OutfitFit.paletteNote(variants);
+		return palette == null ? bundle.summary() : bundle.summary() + " " + palette;
 	}
 
 	private void saveMessages(UUID runId, String kind, List<String> messages) {

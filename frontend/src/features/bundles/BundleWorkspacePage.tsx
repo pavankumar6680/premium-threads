@@ -23,6 +23,7 @@ import {
   type Alternative,
   type Strategy,
 } from './api';
+import { ItemVariantLabel, ItemVariantSelect } from './ItemVariant';
 
 export function BundleWorkspacePage() {
   const { id = '' } = useParams();
@@ -118,7 +119,7 @@ function ItemRow({ bundle, item, swapping, onToggleSwap, edits }: {
     <li className={clsx('rounded-2xl border bg-white', item.available ? 'border-slate-200' : 'border-red-300')}>
       <div className="flex gap-4 p-4">
         <div className="w-16 shrink-0 sm:w-20">
-          <ProductImage categorySlug={item.categorySlug} alt={item.name} size="sm" />
+          <ProductImage categorySlug={item.categorySlug} colorHex={item.variant?.colorHex} alt={item.name} size="sm" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-2">
@@ -133,6 +134,8 @@ function ItemRow({ bundle, item, swapping, onToggleSwap, edits }: {
               ) : (
                 <p className="font-semibold">{item.name}</p>
               )}
+              {item.brand && <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{item.brand}</p>}
+              <ItemVariantLabel item={item} />
               <div className="mt-0.5"><Rating value={item.ratingAvg} count={item.ratingCount} /></div>
             </div>
             <p className="font-bold">{formatMoney(item.lineTotal)}</p>
@@ -142,6 +145,11 @@ function ItemRow({ bundle, item, swapping, onToggleSwap, edits }: {
 
           {bundle.editable && (
             <div className="mt-3 flex flex-wrap items-center gap-2">
+              <ItemVariantSelect
+                item={item}
+                disabled={busy}
+                onChoose={(variantId) => edits.update.mutate({ category: item.categorySlug, variantId })}
+              />
               <QuantityStepper
                 label={`Quantity of ${item.categoryName}`}
                 value={item.quantity}
@@ -426,7 +434,11 @@ function ActionsPanel({ bundle, edits }: { bundle: Bundle; edits: Edits }) {
         <ShoppingCart className="size-4" aria-hidden="true" /> Add bundle to cart
       </Button>
       {!bundle.purchasable && (
-        <p className="text-xs text-red-600">Resolve compatibility conflicts and unavailable items to buy this bundle.</p>
+        <p className="text-xs text-red-600">
+          {bundle.items.some((i) => i.needsSize)
+            ? 'Choose a size for every piece to buy this outfit.'
+            : 'Resolve compatibility conflicts and unavailable items to buy this bundle.'}
+        </p>
       )}
       {bundle.editable && (
         <button

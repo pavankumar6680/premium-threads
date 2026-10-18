@@ -61,7 +61,7 @@ public final class GoalViews {
 
 	public record GoalView(UUID id, String title, TemplateRef template, String rawText, BigDecimal budget,
 			Quality quality, List<GoalItem> items, List<String> preferredBrands, List<String> usageTags, Space space,
-			String notes, Instant createdAt, Estimate estimate) {
+			String notes, Instant createdAt, Estimate estimate, com.buildmybundle.goals.GoalModels.Fit fit) {
 	}
 
 	public record GoalSummary(UUID id, String title, String templateSlug, BigDecimal budget, Quality quality,

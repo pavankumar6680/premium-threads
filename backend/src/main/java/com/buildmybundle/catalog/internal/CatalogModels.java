@@ -100,7 +100,17 @@ public final class CatalogModels {
 	}
 
 	/** Styles and occasions offered for filtering and the outfit builder. */
-	public record Vocabulary(List<NamedRef> styles, List<NamedRef> occasions) {
+	/**
+	 * Words the storefront and outfit builder offer as choices.
+	 *
+	 * @param sizes size scale (ALPHA, WAIST) → sizes sold, in natural order
+	 */
+	public record Vocabulary(List<NamedRef> styles, List<NamedRef> occasions, List<ColorRef> colors,
+			Map<String, List<String>> sizes) {
+	}
+
+	/** @param family NEUTRAL, ACCENT, DENIM or METAL */
+	public record ColorRef(String name, String hex, String family) {
 	}
 
 	// ------------------------------------------------------------------ internal rows

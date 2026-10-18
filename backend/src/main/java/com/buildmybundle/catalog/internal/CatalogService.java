@@ -84,7 +84,11 @@ public class CatalogService {
 	}
 
 	public Vocabulary vocabulary() {
-		return new Vocabulary(brands.styles(), brands.occasions());
+		Map<String, List<String>> sizes = new java.util.TreeMap<>();
+		queries.sizesByScale()
+			.forEach((scale, values) -> sizes.put(scale,
+					values.stream().sorted(Comparator.comparingInt(CatalogService::sizeRank)).toList()));
+		return new Vocabulary(brands.styles(), brands.occasions(), queries.colors(), sizes);
 	}
 
 	public Optional<ProductDetail> detail(String slug) {
@@ -166,6 +170,10 @@ public class CatalogService {
 		return new LinkedHashSet<>(queries.activeBrands());
 	}
 
+	public Set<String> colorNames() {
+		return new LinkedHashSet<>(queries.colorNames());
+	}
+
 	public Set<String> tags() {
 		return new LinkedHashSet<>(queries.tags());
 	}
@@ -176,16 +184,53 @@ public class CatalogService {
 
 	// ------------------------------------------------------------------ helpers
 
+	/**
+	 * Facts for the recommendation engine and compatibility rules: specifications plus attributes derived for
+	 * outfits (see {@link ProductFacts#WARDROBE}, {@link ProductFacts#COVERS}, {@link ProductFacts#DRESS_CODE},
+	 * {@link ProductFacts#STOCK_OPTIONS}).
+	 */
 	private List<ProductFacts> toFacts(List<SummaryWithCategory> rows) {
 		List<Long> ids = rows.stream().map(r -> r.summary().id()).toList();
-		Map<Long, Integer> stock = stockByProduct(ids);
+		List<VariantRow> variants = queries.variantsOfProducts(ids).stream().filter(VariantRow::active).toList();
+		Map<Long, Integer> variantStock = inventory.availableQuantities(variants.stream().map(VariantRow::id).toList());
+		Map<Long, List<VariantRow>> variantsByProduct = variants.stream()
+			.collect(Collectors.groupingBy(VariantRow::productId, LinkedHashMap::new, Collectors.toList()));
 		Map<Long, Map<String, List<String>>> attributes = queries.attributeValues(ids);
 		Map<Long, Set<String>> tags = queries.tagsByProduct(ids);
-		return rows.stream()
-			.map(r -> new ProductFacts(r.summary().withAvailableQuantity(stock.getOrDefault(r.summary().id(), 0)),
-					r.categoryId(), attributes.getOrDefault(r.summary().id(), Map.of()),
-					tags.getOrDefault(r.summary().id(), Set.of())))
-			.toList();
+		return rows.stream().map(r -> {
+			Long id = r.summary().id();
+			List<VariantRow> options = variantsByProduct.getOrDefault(id, List.of());
+			int stock = options.stream().mapToInt(v -> variantStock.getOrDefault(v.id(), 0)).sum();
+			Map<String, List<String>> facts = new LinkedHashMap<>(attributes.getOrDefault(id, Map.of()));
+			facts.put(ProductFacts.WARDROBE, "UNISEX".equals(r.gender()) || r.gender() == null ? List.of("MEN", "WOMEN")
+					: List.of(r.gender()));
+			List<String> covers = covers(r.outfitSlot());
+			if (!covers.isEmpty()) {
+				facts.put(ProductFacts.COVERS, covers);
+			}
+			if (r.outfitSlot() != null && !"ACCESSORY".equals(r.outfitSlot()) && facts.containsKey("formality")) {
+				facts.put(ProductFacts.DRESS_CODE, facts.get("formality"));
+			}
+			facts.put(ProductFacts.STOCK_OPTIONS, options.stream()
+				.filter(v -> variantStock.getOrDefault(v.id(), 0) > 0)
+				.map(v -> v.size() + ProductFacts.OPTION_SEPARATOR + v.color())
+				.toList());
+			return new ProductFacts(r.summary().withAvailableQuantity(stock), r.categoryId(), Map.copyOf(facts),
+					tags.getOrDefault(id, Set.of()));
+		}).toList();
+	}
+
+	private static List<String> covers(String outfitSlot) {
+		if (outfitSlot == null) {
+			return List.of();
+		}
+		return switch (outfitSlot) {
+			case "TOP" -> List.of("upper");
+			case "BOTTOM" -> List.of("lower");
+			case "FULL" -> List.of("upper", "lower");
+			case "LAYER" -> List.of("outer");
+			default -> List.of();
+		};
 	}
 
 	private List<ProductSummary> withStock(List<ProductSummary> products) {

@@ -24,13 +24,13 @@ const bundle = (tier: Tier, total: number): Bundle => ({
       productId: 1, slug: 'desk', sku: 'DSK-001', name: `${tier} desk`, brand: 'Northdesk', categorySlug: 'desks', categoryName: 'Desks',
       quantity: 1, unitPrice: total - 100, currentPrice: total - 100, lineTotal: total - 100, optional: false, locked: false,
       explanation: 'The lowest-priced option in Desks; rated 4.2/5 by 860 customers.', ratingAvg: 4.2, ratingCount: 860,
-      availableQuantity: 10, available: true,
+      availableQuantity: 10, available: true, variant: null, needsSize: false,
     },
     {
       productId: 2, slug: 'arm', sku: 'ARM-002', name: `${tier} arm`, brand: 'Mountix', categorySlug: 'monitor-arms', categoryName: 'Monitor Arms',
       quantity: 1, unitPrice: 100, currentPrice: 100, lineTotal: 100, optional: true, locked: false,
       explanation: 'Works with the monitor (within the arm’s load limit).', ratingAvg: 4.6, ratingCount: 1520,
-      availableQuantity: 10, available: true,
+      availableQuantity: 10, available: true, variant: null, needsSize: false,
     },
   ],
   compatibility: {

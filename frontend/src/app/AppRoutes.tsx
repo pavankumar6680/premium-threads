@@ -18,6 +18,7 @@ import { GoalWizardPage } from '../features/goals/wizard/GoalWizardPage';
 import { OrderDetailPage } from '../features/orders/OrderDetailPage';
 import { OrdersPage } from '../features/orders/OrdersPage';
 import { RecommendationsPage } from '../features/recommendations/RecommendationsPage';
+import { OutfitBuilderPage } from '../features/outfit/OutfitBuilderPage';
 import { WishlistPage } from '../features/wishlist/WishlistPage';
 import { HomePage } from '../pages/HomePage';
 import { NotFoundPage } from '../pages/NotFoundPage';
@@ -34,7 +35,7 @@ export function AppRoutes() {
         <Route path="products/:slug" element={<ProductPage />} />
         <Route path="brands" element={<BrandsPage />} />
         <Route path="brands/:slug" element={<BrandPage />} />
-        <Route path="outfit" element={<GoalsPage />} />
+        <Route path="outfit" element={<OutfitBuilderPage />} />
         <Route path="goals" element={<GoalsPage />} />
         <Route path="goals/new" element={<GoalWizardPage />} />
         <Route path="goals/:id" element={<GoalPage />} />

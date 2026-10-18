@@ -85,6 +85,66 @@ class RecommendationIntegrationTest extends IntegrationTest {
 	}
 
 	@Test
+	void outfitsComeInTheWearersSizeAndColorsAndGoStraightToTheCart() throws Exception {
+		String goalId = goal("weekend-casual-men", 300, WEEKEND_MEN_ITEMS,
+				null, "{\"sizeAlpha\":\"M\",\"sizeWaist\":\"32\",\"colors\":[\"Navy\",\"Olive\"]}");
+		String run = recommend(goalId);
+
+		for (int b = 0; b < 3; b++) {
+			String bundle = "$.bundles[" + b + "]";
+			assertThat(JsonPath.<Boolean>read(run, bundle + ".purchasable")).isTrue();
+			assertThat(JsonPath.<String>read(run, bundle + ".summary")).contains("Colors:");
+			List<Map<String, Object>> items = JsonPath.read(run, bundle + ".items");
+			for (Map<String, Object> item : items) {
+				@SuppressWarnings("unchecked")
+				Map<String, Object> variant = (Map<String, Object>) item.get("variant");
+				assertThat(variant).as("variant of %s", item.get("name")).isNotNull();
+				String size = (String) variant.get("size");
+				switch ((String) item.get("categorySlug")) {
+					case "men-jeans" -> assertThat(size).isEqualTo("32");
+					case "men-tshirts", "men-jackets" -> assertThat(size).isEqualTo("M");
+					default -> assertThat(size).isEqualToIgnoringCase("One size");
+				}
+				assertThat(item.get("needsSize")).isEqualTo(false);
+				assertThat((String) item.get("explanation")).containsIgnoringCase("shown in");
+			}
+		}
+		// the shopper's colors win wherever a piece comes in them
+		assertThat(JsonPath.<List<String>>read(run, "$.bundles[*].items[*].variant.color")).containsAnyOf("Navy", "Olive");
+
+		String bundleId = JsonPath.read(run, "$.bundles[1].id");
+		newCustomer().post("/api/v1/cart/bundles/" + bundleId).andExpect(status().is2xxSuccessful());
+	}
+
+	@Test
+	void sizesCanBeChosenPerPieceInACustomizedOutfit() throws Exception {
+		String run = recommend(goal("weekend-casual-men", 300, WEEKEND_MEN_ITEMS, null));
+		String bundleId = JsonPath.read(run, "$.bundles[0].id");
+		BrowserSession customer = newCustomer();
+		String copy = customer.post("/api/v1/bundles/" + bundleId + "/customize")
+			.andReturn().getResponse().getContentAsString();
+		String copyId = JsonPath.read(copy, "$.id");
+		assertThat(JsonPath.<Boolean>read(copy, "$.purchasable")).isFalse();
+
+		String latest = copy;
+		for (String slug : List.of("men-tshirts", "men-jeans")) {
+			Number productId = JsonPath.<List<Number>>read(latest, "$.items[?(@.categorySlug == '" + slug + "')].productId").getFirst();
+			Long variantId = variantOf(productId.longValue());
+			latest = customer.patchJson("/api/v1/bundles/" + copyId + "/items/" + slug, "{\"variantId\":" + variantId + "}")
+				.andExpect(status().isOk())
+				.andReturn().getResponse().getContentAsString();
+		}
+		assertThat(JsonPath.<Boolean>read(latest, "$.purchasable")).isTrue();
+		assertThat(JsonPath.<List<Object>>read(latest, "$.items[?(@.needsSize == true)]")).isEmpty();
+
+		// a variant of another product is refused
+		Number jeans = JsonPath.<List<Number>>read(latest, "$.items[?(@.categorySlug == 'men-jeans')].productId").getFirst();
+		customer.patchJson("/api/v1/bundles/" + copyId + "/items/men-tshirts", "{\"variantId\":" + variantOf(jeans.longValue()) + "}")
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("VARIANT_MISMATCH"));
+	}
+
+	@Test
 	void unknownIdsReturn404() throws Exception {
 		mockMvc.perform(get("/api/v1/recommendations/00000000-0000-0000-0000-000000000000"))
 			.andExpect(status().isNotFound())
@@ -101,8 +161,13 @@ class RecommendationIntegrationTest extends IntegrationTest {
 	}
 
 	private String goal(String template, int budget, String items, String space) throws Exception {
+		return goal(template, budget, items, space, null);
+	}
+
+	private String goal(String template, int budget, String items, String space, String fit) throws Exception {
 		String body = "{" + (template == null ? "" : "\"templateSlug\":\"" + template + "\",") + "\"budget\":" + budget
-				+ ",\"quality\":\"BALANCED\",\"items\":" + items + (space == null ? "" : ",\"space\":" + space) + "}";
+				+ ",\"quality\":\"BALANCED\",\"items\":" + items + (space == null ? "" : ",\"space\":" + space)
+				+ (fit == null ? "" : ",\"fit\":" + fit) + "}";
 		String response = new BrowserSession(mockMvc).postJson("/api/v1/goals", body)
 			.andExpect(status().isCreated())
 			.andReturn()

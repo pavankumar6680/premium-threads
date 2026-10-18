@@ -110,4 +110,7 @@ export type Brand = {
   categories: string[];
 };
 
-export type Vocabulary = { styles: NamedRef[]; occasions: NamedRef[] };
+export type ColorRef = { name: string; hex: string | null; family: 'NEUTRAL' | 'ACCENT' | 'DENIM' | 'METAL' };
+
+/** Choices offered by the storefront and outfit builder; sizes by scale (ALPHA, WAIST) in natural order. */
+export type Vocabulary = { styles: NamedRef[]; occasions: NamedRef[]; colors: ColorRef[]; sizes: Record<string, string[]> };

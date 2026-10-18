@@ -5,6 +5,7 @@ import { Button } from '../../components/ui/Button';
 import { formatMoney } from '../../lib/format';
 import { ProductImage } from '../catalog/components/ProductImage';
 import { useCustomizeBundle } from '../bundles/api';
+import { ItemVariantLabel } from '../bundles/ItemVariant';
 import { tierLabels, useAddBundleToCart, type Bundle } from './api';
 
 export function BundleCard({ bundle, recommended }: { bundle: Bundle; recommended: boolean }) {
@@ -49,7 +50,7 @@ export function BundleCard({ bundle, recommended }: { bundle: Bundle; recommende
         {bundle.items.map((item) => (
           <li key={item.productId} className="flex gap-3 p-4">
             <div className="w-14 shrink-0">
-              <ProductImage categorySlug={item.categorySlug} alt={item.name} size="sm" />
+              <ProductImage categorySlug={item.categorySlug} colorHex={item.variant?.colorHex} alt={item.name} size="sm" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-2">
@@ -63,6 +64,7 @@ export function BundleCard({ bundle, recommended }: { bundle: Bundle; recommende
                   ) : (
                     <p className="text-sm font-semibold">{item.name}</p>
                   )}
+                  <ItemVariantLabel item={item} />
                 </div>
                 <p className="shrink-0 text-sm font-semibold">
                   {item.quantity > 1 && <span className="font-normal text-slate-500">{item.quantity} × </span>}
@@ -86,6 +88,9 @@ export function BundleCard({ bundle, recommended }: { bundle: Bundle; recommende
         >
           <ShoppingCart className="size-4" aria-hidden="true" /> Add bundle to cart
         </Button>
+        {bundle.items.some((i) => i.needsSize) && (
+          <p className="text-xs text-violet-700">Customize to choose sizes, then add the whole outfit to your cart.</p>
+        )}
         <Button
           variant="secondary"
           className="w-full"

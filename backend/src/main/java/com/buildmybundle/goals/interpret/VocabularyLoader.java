@@ -93,7 +93,7 @@ public class VocabularyLoader {
 					t.usageOptions().stream().map(UsageOption::tag).toList()))
 			.toList();
 
-		return new InterpreterVocabulary(terms, phrases, catalog.brands(), catalog.tags());
+		return new InterpreterVocabulary(terms, phrases, catalog.brands(), catalog.tags(), catalog.colorNames());
 	}
 
 }

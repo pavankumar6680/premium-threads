@@ -128,11 +128,14 @@ public class GoalService {
 		Set<String> tags = canonical(command.usageTags(), catalog.tags(), "UNKNOWN_USAGE_TAG", "usageTags",
 				"Unknown usage preferences");
 
+		GoalModels.Fit fit = fit(command.fit(), template);
+
 		String title = !blank(command.title()) ? command.title().trim()
 				: template != null ? template.title() : CUSTOM_TITLE;
 		ShoppingGoal goal = new ShoppingGoal(userId, template == null ? null : template.id(), title,
 				trimToNull(command.rawText()), command.budget(), command.quality(), command.spaceWidthCm(),
 				command.spaceDepthCm(), trimToNull(command.notes()), brands, tags);
+		goal.describeWearer(fit.gender(), fit.sizeAlpha(), fit.sizeWaist(), new LinkedHashSet<>(fit.colors()));
 		for (CreateGoal.Item item : command.items()) {
 			int quantity = item.kind() == RequirementKind.OWNED ? 1 : Math.max(1, item.quantity());
 			goal.addRequirement(leaves.get(item.categorySlug()).id(), item.kind(), quantity);
@@ -163,7 +166,7 @@ public class GoalService {
 					g.getRequirements().stream().map(r -> new GoalSnapshot.Requirement(r.getCategoryId(),
 							byId.get(r.getCategoryId()).slug(), r.getKind(), r.getQuantity())).toList(),
 					List.copyOf(g.getPreferredBrands()), List.copyOf(g.getUsageTags()), g.getSpaceWidthCm(),
-					g.getSpaceDepthCm());
+					g.getSpaceDepthCm(), fitOf(g));
 		});
 	}
 
@@ -192,7 +195,25 @@ public class GoalService {
 				: new Space(g.getSpaceWidthCm(), g.getSpaceDepthCm());
 		return new GoalView(g.getId(), g.getTitle(), template == null ? null : new TemplateRef(template.slug(), template.title()),
 				g.getRawText(), g.getBudget(), g.getQuality(), items, g.getPreferredBrands().stream().sorted().toList(),
-				g.getUsageTags().stream().sorted().toList(), space, g.getNotes(), g.getCreatedAt(), estimate);
+				g.getUsageTags().stream().sorted().toList(), space, g.getNotes(), g.getCreatedAt(), estimate, fitOf(g));
+	}
+
+	private static GoalModels.Fit fitOf(ShoppingGoal g) {
+		return new GoalModels.Fit(g.getGender(), g.getSizeAlpha(), g.getSizeWaist(), List.copyOf(g.getPreferredColors()));
+	}
+
+	/**
+	 * Validates the wearer description. A men's or women's template implies the wardrobe when none is given;
+	 * colors must be ones the catalog actually sells (canonical spelling).
+	 */
+	private GoalModels.Fit fit(GoalModels.Fit requested, Template template) {
+		GoalModels.Fit fit = requested == null ? GoalModels.Fit.NONE : requested;
+		String gender = fit.gender();
+		if (gender == null && template != null) {
+			gender = template.slug().endsWith("-women") ? "WOMEN" : template.slug().endsWith("-men") ? "MEN" : null;
+		}
+		Set<String> colors = canonical(fit.colors(), catalog.colorNames(), "UNKNOWN_COLOR", "colors", "Unknown colors");
+		return new GoalModels.Fit(gender, trimToNull(fit.sizeAlpha()), trimToNull(fit.sizeWaist()), List.copyOf(colors));
 	}
 
 	private static List<Map.Entry<Long, Integer>> toBuy(List<GoalRequirement> requirements, boolean includeOptional) {

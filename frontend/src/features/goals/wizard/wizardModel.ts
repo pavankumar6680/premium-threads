@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { CategoryOption, CreateGoalInput, Goal, GoalAnalysis, Quality, RequirementKind, TemplateDetail } from '../api';
+import type { CategoryOption, CreateGoalInput, Fit, Goal, GoalAnalysis, Quality, RequirementKind, TemplateDetail } from '../api';
 
 export type ItemKind = RequirementKind | 'SKIP';
 
@@ -33,6 +33,8 @@ export const wizardSchema = z.object({
   spaceWidthCm: spaceField,
   spaceDepthCm: spaceField,
   notes: z.string().max(500, 'Use at most 500 characters'),
+  /** carried through from the request text or the original goal; edited in the outfit builder */
+  fit: z.custom<Fit>().nullable(),
 });
 
 export type WizardValues = z.infer<typeof wizardSchema>;
@@ -57,6 +59,7 @@ const base = (overrides: Partial<WizardValues>): WizardValues => ({
   spaceWidthCm: '',
   spaceDepthCm: '',
   notes: '',
+  fit: null,
   ...overrides,
 });
 
@@ -96,6 +99,7 @@ export function fromAnalysis(analysis: GoalAnalysis, text: string, template: Tem
     quality: analysis.quality,
     usageTags: analysis.usageTags,
     preferredBrands: analysis.preferredBrands,
+    fit: analysis.fit ?? null,
   });
 }
 
@@ -124,6 +128,7 @@ export function fromGoal(goal: Goal, template: TemplateDetail | undefined): Wiza
     spaceWidthCm: goal.space?.widthCm != null ? String(goal.space.widthCm) : '',
     spaceDepthCm: goal.space?.depthCm != null ? String(goal.space.depthCm) : '',
     notes: goal.notes ?? '',
+    fit: goal.fit ?? null,
   });
 }
 
@@ -155,5 +160,6 @@ export function toCreateInput(values: WizardValues): CreateGoalInput {
     usageTags: values.usageTags,
     space: width || depth ? { widthCm: width ? Number(width) : null, depthCm: depth ? Number(depth) : null } : null,
     notes: values.notes.trim() || null,
+    fit: values.fit,
   };
 }

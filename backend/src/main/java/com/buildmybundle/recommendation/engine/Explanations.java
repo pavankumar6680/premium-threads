@@ -14,6 +14,7 @@ import com.buildmybundle.catalog.ProductFacts;
 import com.buildmybundle.compatibility.CompatibilityChecker;
 import com.buildmybundle.compatibility.CompatibilityModels.Operator;
 import com.buildmybundle.compatibility.CompatibilityModels.Rule;
+import com.buildmybundle.recommendation.engine.EngineModels.ScoringContext;
 import com.buildmybundle.recommendation.engine.EngineModels.OwnedCategory;
 import com.buildmybundle.recommendation.engine.EngineModels.Pick;
 import com.buildmybundle.recommendation.engine.EngineModels.Problem;
@@ -78,9 +79,17 @@ final class Explanations {
 		if (context != null && product.tags().contains(context)) {
 			fits.add(humanize(context));
 		}
-		problem.context().usageTags().stream().filter(product.tags()::contains).map(Explanations::humanize).forEach(fits::add);
+		problem.context()
+			.usageTags()
+			.stream()
+			.filter(t -> !ScoringContext.PREFERRED_COLOR_TAG.equals(t) && product.tags().contains(t))
+			.map(Explanations::humanize)
+			.forEach(fits::add);
 		if (!fits.isEmpty()) {
 			reasons.add("made for " + String.join(" and ", fits));
+		}
+		if (product.tags().contains(ScoringContext.PREFERRED_COLOR_TAG)) {
+			reasons.add("comes in a color you picked");
 		}
 		if (problem.context().preferredBrands().contains(product.product().brand())) {
 			reasons.add("from your preferred brand " + product.product().brand());
@@ -91,7 +100,7 @@ final class Explanations {
 			if (compatibilityReasons >= MAX_COMPATIBILITY_REASONS) {
 				break;
 			}
-			if (rule.operator().pairwise()) {
+			if (rule.operator().pairwise() && !rule.universal()) {
 				for (ProductFacts other : chosen) {
 					if (other == product || compatibilityReasons >= MAX_COMPATIBILITY_REASONS) {
 						continue;
@@ -149,7 +158,7 @@ final class Explanations {
 		solutions.forEach(s -> s.chosen().forEach(p -> pickedCategories.add(p.need().categorySlug())));
 		for (OwnedCategory owned : problem.owned()) {
 			for (Rule rule : problem.rules()) {
-				if (!rule.involves(owned.slug()) || rule.operator().spatial()) {
+				if (!rule.involves(owned.slug()) || rule.operator().spatial() || rule.universal()) {
 					continue;
 				}
 				String other = owned.slug().equals(rule.sourceCategory()) ? rule.targetCategory() : rule.sourceCategory();

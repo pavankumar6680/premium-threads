@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.buildmybundle.goals.GoalModels.Fit;
 import com.buildmybundle.goals.GoalModels.Quality;
 import com.buildmybundle.goals.GoalModels.RequirementKind;
 import com.buildmybundle.goals.interpret.GoalAnalysis.Item;
@@ -35,6 +36,8 @@ import com.buildmybundle.goals.interpret.InterpreterVocabulary.TemplateTerms;
  * resolved in favour of the matched template's categories.</li>
  * <li>Owned items: categories named in a clause like "I already have a monitor and keyboard".</li>
  * <li>Quality, usage tags and brands from fixed phrase lists and the catalog's brand names.</li>
+ * <li>Fit: wardrobe ("for him", "women's"), sizes ("size M", "medium", "waist 32", "32 waist") and the
+ * catalog's color names ("navy and olive"). Nothing is assumed when the text does not say it.</li>
  * </ol>
  */
 public final class RuleBasedGoalInterpreter {
@@ -100,6 +103,7 @@ public final class RuleBasedGoalInterpreter {
 		List<Item> items = buildItems(template, mentioned);
 		List<String> usageTags = detectUsageTags(normalized, vocabulary, template, matched);
 		List<String> brands = detectBrands(normalized, vocabulary, matched);
+		Fit fit = detectFit(normalized, vocabulary, template, matched);
 
 		List<String> clarifications = new ArrayList<>();
 		if (budget == null) {
@@ -111,7 +115,77 @@ public final class RuleBasedGoalInterpreter {
 
 		return new GoalAnalysis(SOURCE, template.map(TemplateTerms::slug).orElse(null),
 				template.map(TemplateTerms::title).orElse(CUSTOM_TITLE), budget, quality, items, usageTags, brands,
-				matched.stream().distinct().toList(), clarifications);
+				matched.stream().distinct().toList(), clarifications, fit);
+	}
+
+	private static final Set<String> MEN_WORDS = Set.of("men", "man", "mens", "men's", "guy", "guys", "him", "his",
+			"boyfriend", "husband", "male", "dad", "brother");
+	private static final Set<String> WOMEN_WORDS = Set.of("women", "woman", "womens", "women's", "girl", "girls",
+			"her", "girlfriend", "wife", "ladies", "female", "mom", "sister");
+
+	private static final Pattern ALPHA_SIZE = Pattern
+		.compile("\\b(?:size|sz|wear(?:s)? (?:a|an)?|in (?:a|an)?)\\s*(xxl|xl|xs|s|m|l|2xl|small|medium|large|extra large|extra small)\\b");
+	private static final Pattern ALPHA_WORD_SIZE = Pattern.compile("\\b(extra small|extra large|small|medium|large)\\s+size\\b");
+	private static final Pattern WAIST_SIZE = Pattern
+		.compile("\\b(?:waist|w)\\s*(?:size\\s*)?(2[4-9]|3[0-9]|4[0-4])\\b|\\b(2[4-9]|3[0-9]|4[0-4])\\s*(?:inch\\s*)?waist\\b");
+	private static final Pattern NUMERIC_SIZE = Pattern.compile("\\bsize\\s*(2[4-9]|3[0-9]|4[0-4])\\b");
+	private static final Map<String, String> ALPHA_CANONICAL = Map.of("small", "S", "medium", "M", "large", "L",
+			"extra large", "XL", "extra small", "XS", "2xl", "XXL");
+
+	/** "men" for templates whose slug ends in -men, "women" for -women, otherwise null. */
+	static String wardrobeOfTemplate(String templateSlug) {
+		if (templateSlug == null) {
+			return null;
+		}
+		return templateSlug.endsWith("-women") ? "WOMEN" : templateSlug.endsWith("-men") ? "MEN" : null;
+	}
+
+	private static Fit detectFit(String text, InterpreterVocabulary vocabulary, Optional<TemplateTerms> template,
+			List<String> matched) {
+		boolean men = MEN_WORDS.stream().anyMatch(w -> countOccurrences(text, w) > 0);
+		boolean women = WOMEN_WORDS.stream().anyMatch(w -> countOccurrences(text, w) > 0);
+		String gender = men == women ? wardrobeOfTemplate(template.map(TemplateTerms::slug).orElse(null))
+				: men ? "MEN" : "WOMEN";
+
+		String alpha = null;
+		for (Pattern pattern : List.of(ALPHA_SIZE, ALPHA_WORD_SIZE)) {
+			Matcher m = pattern.matcher(text);
+			if (alpha == null && m.find()) {
+				alpha = ALPHA_CANONICAL.getOrDefault(m.group(1), m.group(1).toUpperCase(Locale.ROOT));
+				matched.add(m.group().trim());
+			}
+		}
+		String waist = null;
+		Matcher w = WAIST_SIZE.matcher(text);
+		if (w.find()) {
+			waist = w.group(1) != null ? w.group(1) : w.group(2);
+			matched.add(w.group().trim());
+		}
+		else {
+			Matcher n = NUMERIC_SIZE.matcher(text);
+			if (n.find()) {
+				waist = n.group(1);
+				matched.add(n.group().trim());
+			}
+		}
+
+		// colors in the order written, only names the catalog actually sells
+		List<Hit> colorHits = new ArrayList<>();
+		for (String color : vocabulary.colors()) {
+			Matcher m = Pattern.compile("\\b" + Pattern.quote(normalize(color)) + "\\b").matcher(text);
+			if (m.find()) {
+				colorHits.add(new Hit(m.start(), color, color));
+			}
+		}
+		colorHits.sort(Comparator.comparingInt(Hit::position));
+		// "rose gold" also contains "gold": keep the longer name only
+		List<String> colors = colorHits.stream()
+			.map(Hit::slug)
+			.filter(c -> colorHits.stream()
+				.noneMatch(o -> !o.slug().equals(c) && normalize(o.slug()).contains(normalize(c))))
+			.toList();
+		colors.forEach(matched::add);
+		return new Fit(gender, alpha, waist, colors);
 	}
 
 	static String normalize(String text) {

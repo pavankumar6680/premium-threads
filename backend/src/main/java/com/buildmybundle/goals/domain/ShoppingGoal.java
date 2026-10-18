@@ -68,6 +68,21 @@ public class ShoppingGoal {
 	@Column(length = 500, updatable = false)
 	private String notes;
 
+	/** MEN or WOMEN, null when the outfit is not for one wardrobe */
+	@Column(length = 10, updatable = false)
+	private String gender;
+
+	@Column(name = "size_alpha", length = 12, updatable = false)
+	private String sizeAlpha;
+
+	@Column(name = "size_waist", length = 12, updatable = false)
+	private String sizeWaist;
+
+	@ElementCollection
+	@CollectionTable(name = "goal_preferred_colors", joinColumns = @JoinColumn(name = "goal_id"))
+	@Column(name = "color", length = 40, nullable = false)
+	private Set<String> preferredColors = new LinkedHashSet<>();
+
 	@OneToMany(mappedBy = "goal", cascade = CascadeType.ALL, orphanRemoval = true)
 	@OrderBy("sortOrder")
 	private List<GoalRequirement> requirements = new ArrayList<>();
@@ -102,6 +117,30 @@ public class ShoppingGoal {
 		this.notes = notes;
 		this.preferredBrands.addAll(preferredBrands);
 		this.usageTags.addAll(usageTags);
+	}
+
+	/** Who the outfit is for (set once, at creation). */
+	public void describeWearer(String gender, String sizeAlpha, String sizeWaist, Set<String> colors) {
+		this.gender = gender;
+		this.sizeAlpha = sizeAlpha;
+		this.sizeWaist = sizeWaist;
+		this.preferredColors.addAll(colors);
+	}
+
+	public String getGender() {
+		return gender;
+	}
+
+	public String getSizeAlpha() {
+		return sizeAlpha;
+	}
+
+	public String getSizeWaist() {
+		return sizeWaist;
+	}
+
+	public Set<String> getPreferredColors() {
+		return preferredColors;
 	}
 
 	@PrePersist

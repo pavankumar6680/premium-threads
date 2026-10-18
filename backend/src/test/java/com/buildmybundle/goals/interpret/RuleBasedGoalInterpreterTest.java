@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.buildmybundle.goals.GoalModels.Fit;
 import com.buildmybundle.goals.GoalModels.Quality;
 import com.buildmybundle.goals.GoalModels.RequirementKind;
 import com.buildmybundle.goals.interpret.InterpreterVocabulary.TemplateItem;
@@ -122,6 +123,28 @@ class RuleBasedGoalInterpreterTest {
 		assertThat(budget("waist 32 jeans")).isNull();
 	}
 
+	@Test
+	void readsWardrobeSizesAndColorsOnlyWhenStated() {
+		Fit fit = interpret("Office outfit for her, size M, waist 28, in navy and rose gold, around $250").fit();
+		assertThat(fit.gender()).isEqualTo("WOMEN");
+		assertThat(fit.sizeAlpha()).isEqualTo("M");
+		assertThat(fit.sizeWaist()).isEqualTo("28");
+		// "rose gold" is one color, not also "gold"; only catalog colors are recognised
+		assertThat(fit.colors()).containsExactly("Navy", "Rose Gold");
+
+		Fit spoken = interpret("I wear a large and 32 waist jeans, black please").fit();
+		assertThat(spoken.sizeAlpha()).isEqualTo("L");
+		assertThat(spoken.sizeWaist()).isEqualTo("32");
+		assertThat(spoken.colors()).containsExactly("Black");
+
+		Fit silent = interpret("Something nice for a party").fit();
+		assertThat(silent.gender()).isEqualTo("WOMEN"); // from the matched women's party template
+		assertThat(silent.sizeAlpha()).isNull();
+		assertThat(silent.sizeWaist()).isNull();
+		assertThat(silent.colors()).isEmpty();
+		assertThat(interpret("a mauve jacket").fit().colors()).as("not a catalog color").isEmpty();
+	}
+
 	private static java.math.BigDecimal budget(String text) {
 		return RuleBasedGoalInterpreter.extractBudget(RuleBasedGoalInterpreter.normalize(text), new ArrayList<>());
 	}
@@ -141,7 +164,8 @@ class RuleBasedGoalInterpreterTest {
 				List.of(item("women-dresses", true, true), item("handbags", false, true), item("jewelry", false, true)));
 		Map<String, List<String>> phrases = new LinkedHashMap<>(VocabularyLoader.SYNONYMS);
 		return new InterpreterVocabulary(List.of(weekendMen, officeMen, officeWomen, partyWomen), phrases,
-				Set.of("Michael Kors", "Levi's", "Zara"), Set.of("casual", "streetwear", "formal", "minimalist", "party-wear"));
+				Set.of("Michael Kors", "Levi's", "Zara"), Set.of("casual", "streetwear", "formal", "minimalist", "party-wear"),
+				Set.of("Navy", "Black", "White", "Gold", "Rose Gold", "Olive"));
 	}
 
 	private static TemplateTerms template(String slug, String title, List<String> occasion, List<String> wardrobe,

@@ -18,6 +18,7 @@ import com.buildmybundle.bundles.BundleModels.Alternative;
 import com.buildmybundle.bundles.BundleModels.BundleSummary;
 import com.buildmybundle.bundles.BundleModels.BundleTier;
 import com.buildmybundle.bundles.BundleModels.BundleView;
+import com.buildmybundle.bundles.BundleModels.ChosenVariant;
 import com.buildmybundle.bundles.BundleModels.EditableBundle;
 import com.buildmybundle.bundles.BundleModels.ItemView;
 import com.buildmybundle.bundles.BundleModels.NewBundle;
@@ -38,6 +39,7 @@ import com.buildmybundle.compatibility.CompatibilityModels.Severity;
 import com.buildmybundle.compatibility.CompatibilityModels.Space;
 import com.buildmybundle.compatibility.CompatibilityModels.Violation;
 import com.buildmybundle.compatibility.CompatibilityService;
+import com.buildmybundle.goals.GoalModels.Fit;
 import com.buildmybundle.goals.GoalModels.GoalSnapshot;
 import com.buildmybundle.goals.GoalModels.RequirementKind;
 import com.buildmybundle.goals.GoalService;
@@ -82,7 +84,7 @@ public class BundleService {
 				Bundle.RECOMMENDED, input.budget(), input.totalPrice(), input.score(), input.summary());
 		input.items()
 			.forEach(i -> bundle.addItem(i.productId(), i.categoryId(), i.quantity(), i.unitPrice(), i.optional(),
-					i.explanation()));
+					i.explanation()).chooseVariant(i.variantId()));
 		return bundles.save(bundle).getId();
 	}
 
@@ -162,16 +164,28 @@ public class BundleService {
 		BundleItem item = slot(bundle, category);
 		ProductSummary product = purchasable(productId, category, item.getQuantity());
 		item.replaceProduct(product.id(), product.price(), CHOSEN_BY_YOU);
+		dressItem(bundle, item);
 		return saved(bundle, userId);
 	}
 
 	@Transactional
-	public BundleView updateItem(UUID id, Long userId, String categorySlug, Integer quantity, Boolean locked) {
+	public BundleView updateItem(UUID id, Long userId, String categorySlug, Integer quantity, Boolean locked,
+			Long variantId) {
 		Bundle bundle = editable(id, userId);
 		BundleItem item = slot(bundle, leaf(categorySlug));
 		if (quantity != null) {
 			purchasable(item.getProductId(), leaf(categorySlug), quantity);
 			item.setQuantity(quantity);
+		}
+		if (variantId != null) {
+			VariantSummary variant = catalog.findVariant(variantId)
+				.filter(v -> v.productId().equals(item.getProductId()))
+				.orElseThrow(() -> ApiException.badRequest("VARIANT_MISMATCH", "This size or color belongs to another product."));
+			if (!variant.canFulfil(item.getQuantity())) {
+				throw ApiException.conflict("INSUFFICIENT_STOCK", "This size and color is not available in that quantity.")
+					.with("available", variant.availableQuantity());
+			}
+			item.chooseVariant(variantId);
 		}
 		if (locked != null) {
 			item.setLocked(locked);
@@ -204,7 +218,7 @@ public class BundleService {
 					"The bundle already has " + category.name().toLowerCase() + ". Swap it instead.");
 		}
 		purchasable(productId, category, quantity);
-		bundle.addItem(product.id(), category.id(), quantity, product.price(), true, CHOSEN_BY_YOU);
+		dressItem(bundle, bundle.addItem(product.id(), category.id(), quantity, product.price(), true, CHOSEN_BY_YOU));
 		return saved(bundle, userId);
 	}
 
@@ -272,7 +286,7 @@ public class BundleService {
 
 		Map<String, String> reasons = new LinkedHashMap<>();
 		for (Rule rule : rules) {
-			if (rule.operator().spatial()) {
+			if (rule.operator().spatial() || rule.universal()) {
 				continue;
 			}
 			for (ProductFacts p : current) {
@@ -334,14 +348,38 @@ public class BundleService {
 		Bundle bundle = editable(id, userId);
 		for (SlotChoice choice : choices) {
 			bundle.item(choice.categoryId())
-				.filter(item -> !item.isLocked())
+				.filter(item -> !item.isLocked() && !item.getProductId().equals(choice.productId()))
 				.ifPresent(item -> item.replaceProduct(choice.productId(), choice.unitPrice(), choice.explanation()));
 		}
+		bundle.getItems().stream().filter(i -> i.getVariantId() == null).forEach(i -> dressItem(bundle, i));
 		bundle.updateTotals(bundle.getTotalPrice(), summary);
 		return saved(bundle, userId);
 	}
 
 	// ---------------------------------------------------------------- helpers
+
+	/**
+	 * Picks the size and color for an item from the goal's fit (the wearer's size, preferred colors, at most one
+	 * accent color across the outfit). Leaves it unset when the size is unknown and the product has several.
+	 */
+	private void dressItem(Bundle bundle, BundleItem item) {
+		Fit fit = goals.find(bundle.getGoalId()).map(GoalSnapshot::fit).orElse(Fit.NONE);
+		Map<Long, CategoryInfo> categories = catalog.categories()
+			.stream()
+			.collect(Collectors.toMap(CategoryInfo::id, Function.identity()));
+		List<String> accents = bundle.getItems()
+			.stream()
+			.filter(i -> i != item && i.getVariantId() != null)
+			.map(i -> catalog.findVariant(i.getVariantId()).orElse(null))
+			.filter(v -> v != null && "ACCENT".equals(v.colorFamily()))
+			.map(VariantSummary::color)
+			.distinct()
+			.toList();
+		CategoryInfo category = categories.get(item.getCategoryId());
+		VariantSummary chosen = OutfitFit.choose(new OutfitFit.Piece(item.getProductId(), category.outfitSlot(),
+				category.sizeScale(), item.getQuantity(), catalog.variantsOf(item.getProductId())), fit, new ArrayList<>(accents));
+		item.chooseVariant(chosen == null ? null : chosen.id());
+	}
 
 	private Alternative alternative(ProductFacts candidate, int quantity, BigDecimal currentLine,
 			List<ProductFacts> others, Space space, List<Rule> rules, boolean isCurrent) {
@@ -463,6 +501,13 @@ public class BundleService {
 	private BundleView view(Bundle bundle, Long viewerId) {
 		List<BundleItem> items = bundle.getItems();
 		Map<Long, ProductSummary> products = catalog.findByIds(items.stream().map(BundleItem::getProductId).toList());
+		Map<Long, VariantSummary> variants = catalog.findVariants(
+				items.stream().map(BundleItem::getVariantId).filter(java.util.Objects::nonNull).toList());
+		Map<Long, Long> optionCounts = new java.util.HashMap<>();
+		items.stream()
+			.filter(i -> i.getVariantId() == null)
+			.forEach(i -> optionCounts.put(i.getProductId(),
+					catalog.variantsOf(i.getProductId()).stream().filter(VariantSummary::active).count()));
 		Map<Long, CategoryInfo> categories = catalog.categories()
 			.stream()
 			.collect(Collectors.toMap(CategoryInfo::id, Function.identity()));
@@ -472,15 +517,21 @@ public class BundleService {
 			BigDecimal current = p == null ? null : p.price();
 			BigDecimal lineTotal = PricingPolicy.money((current == null ? i.getUnitPrice() : current)
 				.multiply(BigDecimal.valueOf(i.getQuantity())));
-			return new ItemView(i.getProductId(), p == null ? null : p.slug(), p == null ? null : p.sku(),
+			VariantSummary v = i.getVariantId() == null ? null : variants.get(i.getVariantId());
+			boolean needsSize = v == null && optionCounts.getOrDefault(i.getProductId(), 0L) > 1;
+			boolean available = p != null && p.canFulfil(i.getQuantity()) && (v == null || v.canFulfil(i.getQuantity()));
+			return new ItemView(i.getProductId(), p == null ? null : p.slug(), v != null ? v.sku() : p == null ? null : p.sku(),
 					p == null ? "Unavailable product" : p.name(), p == null ? null : p.brand(), c.slug(), c.name(),
 					i.getQuantity(), i.getUnitPrice(), current, lineTotal, i.isOptional(), i.isLocked(),
 					i.getExplanation(), p == null ? BigDecimal.ZERO : p.ratingAvg(), p == null ? 0 : p.ratingCount(),
-					p == null ? 0 : p.availableQuantity(), p != null && p.canFulfil(i.getQuantity()));
+					v != null ? v.availableQuantity() : p == null ? 0 : p.availableQuantity(), available,
+					v == null ? null : new ChosenVariant(v.id(), v.size(), v.color(), v.colorHex(), v.availableQuantity()),
+					needsSize);
 		}).toList();
 		BigDecimal currentTotal = views.stream().map(ItemView::lineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
 		Report report = report(bundle);
-		boolean purchasable = !views.isEmpty() && views.stream().allMatch(ItemView::available) && report.compatible();
+		boolean purchasable = !views.isEmpty() && views.stream().allMatch(ItemView::available)
+				&& views.stream().noneMatch(ItemView::needsSize) && report.compatible();
 		boolean editable = bundle.editable() && viewerId != null && viewerId.equals(bundle.getUserId());
 		return new BundleView(bundle.getId(), bundle.getGoalId(), goalTitle(bundle.getGoalId()), bundle.getRunId(),
 				bundle.getSourceBundleId(), BundleTier.valueOf(bundle.getTier()), bundle.getName(), bundle.getStatus(),

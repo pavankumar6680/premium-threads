@@ -106,14 +106,23 @@ class GoalController {
 			@NotNull Quality quality, @NotEmpty @Size(max = 20) List<@Valid @NotNull ItemRequest> items,
 			@Size(max = 10) List<@NotBlank @Size(max = 80) String> preferredBrands,
 			@Size(max = 10) List<@NotBlank @Size(max = 40) String> usageTags, @Valid SpaceRequest space,
-			@Size(max = 500) String notes) {
+			@Size(max = 500) String notes, @Valid FitRequest fit) {
 
 		CreateGoal toCommand() {
 			return new CreateGoal(templateSlug, title, rawText, budget, quality,
 					items.stream().map(i -> new CreateGoal.Item(i.categorySlug(), i.kind(), i.quantity() == null ? 1 : i.quantity())).toList(),
 					preferredBrands, usageTags, space == null ? null : space.widthCm(),
-					space == null ? null : space.depthCm(), notes);
+					space == null ? null : space.depthCm(), notes,
+					fit == null ? null : new com.buildmybundle.goals.GoalModels.Fit(fit.gender(), fit.sizeAlpha(),
+							fit.sizeWaist(), fit.colors() == null ? java.util.List.of() : fit.colors()));
 		}
+	}
+
+	/** Who the outfit is for; every field optional. */
+	record FitRequest(@jakarta.validation.constraints.Pattern(regexp = "MEN|WOMEN") String gender,
+			@jakarta.validation.constraints.Pattern(regexp = "XXS|XS|S|M|L|XL|XXL|XXXL", message = "a letter size such as M") String sizeAlpha,
+			@jakarta.validation.constraints.Pattern(regexp = "[0-9]{2}", message = "a waist size such as 32") String sizeWaist,
+			@Size(max = 6) List<@NotBlank @Size(max = 40) String> colors) {
 	}
 
 	record ItemRequest(@NotBlank @Size(max = 80) String categorySlug, @NotNull RequirementKind kind,

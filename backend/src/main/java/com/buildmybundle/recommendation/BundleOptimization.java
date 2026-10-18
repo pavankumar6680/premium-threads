@@ -78,13 +78,11 @@ public class BundleOptimization {
 			.filter(r -> r.kind() == RequirementKind.OWNED)
 			.map(r -> new OwnedCategory(r.categorySlug(), categories.get(r.categoryId()).name()))
 			.toList();
-		Map<String, List<ProductFacts>> candidates = catalog
-			.activeFactsInCategories(needs.stream().map(Need::categoryId).toList())
-			.stream()
-			.collect(Collectors.groupingBy(ProductFacts::categorySlug, LinkedHashMap::new, Collectors.toList()));
+		Map<String, List<ProductFacts>> candidates = OutfitCandidates.load(catalog,
+				needs.stream().map(Need::categoryId).toList(), categories, goal.fit(), java.util.Set.copyOf(locked.values()));
 		Problem problem = new Problem(needs, candidates, compatibility.activeRules(),
 				bundle.budget().movePointRight(2).longValueExact(), new Space(goal.spaceWidthCm(), goal.spaceDepthCm()),
-				owned, new ScoringContext(goal.contextTag(), goal.usageTags(), goal.preferredBrands()),
+				owned, OutfitCandidates.context(goal),
 				categories.values().stream().collect(Collectors.toMap(CategoryInfo::slug, CategoryInfo::name)));
 
 		Tier tier = strategy != null ? strategy

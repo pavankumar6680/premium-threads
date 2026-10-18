@@ -23,6 +23,9 @@ public final class EngineModels {
 
 	/** What a product is scored against: the goal's purpose, usage and brand preferences. */
 	public record ScoringContext(String contextTag, List<String> usageTags, List<String> preferredBrands) {
+
+		/** Synthetic tag of products that come in one of the shopper's colors, in their size. */
+		public static final String PREFERRED_COLOR_TAG = "in-your-colors";
 	}
 
 	/**

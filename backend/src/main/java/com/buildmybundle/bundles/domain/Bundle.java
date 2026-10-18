@@ -104,7 +104,7 @@ public class Bundle {
 		Bundle copy = new Bundle(goalId, null, owner, tier, name, DRAFT, budget, totalPrice, score, summary);
 		copy.sourceBundleId = id;
 		items.forEach(i -> copy.addItem(i.getProductId(), i.getCategoryId(), i.getQuantity(), i.getUnitPrice(),
-				i.isOptional(), i.getExplanation()));
+				i.isOptional(), i.getExplanation()).chooseVariant(i.getVariantId()));
 		return copy;
 	}
 
@@ -119,11 +119,13 @@ public class Bundle {
 		updatedAt = Instant.now();
 	}
 
-	public void addItem(Long productId, Long categoryId, int quantity, BigDecimal unitPrice, boolean optional,
+	public BundleItem addItem(Long productId, Long categoryId, int quantity, BigDecimal unitPrice, boolean optional,
 			String explanation) {
 		int sortOrder = items.stream().mapToInt(BundleItem::getSortOrder).max().orElse(-1) + 1;
-		items.add(new BundleItem(this, productId, categoryId, quantity, unitPrice, optional, explanation, sortOrder));
+		BundleItem item = new BundleItem(this, productId, categoryId, quantity, unitPrice, optional, explanation, sortOrder);
+		items.add(item);
 		touch();
+		return item;
 	}
 
 	public Optional<BundleItem> item(Long categoryId) {

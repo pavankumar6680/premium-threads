@@ -10,7 +10,7 @@ import type { Alternative } from './api';
 const item = (overrides: Partial<BundleItem>): BundleItem => ({
   productId: 1, slug: 'p', sku: 'SKU', name: 'Product', brand: 'Brand', categorySlug: 'cameras', categoryName: 'Cameras',
   quantity: 1, unitPrice: 100, currentPrice: 100, lineTotal: 100, optional: false, locked: false,
-  explanation: 'Explained.', ratingAvg: 4.5, ratingCount: 100, availableQuantity: 10, available: true, ...overrides,
+  explanation: 'Explained.', ratingAvg: 4.5, ratingCount: 100, availableQuantity: 10, available: true, variant: null, needsSize: false, ...overrides,
 });
 
 const camera = item({ productId: 1, name: 'Fotonix FX-30', categorySlug: 'cameras', categoryName: 'Cameras', unitPrice: 699, currentPrice: 699, lineTotal: 699 });

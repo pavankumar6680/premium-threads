@@ -11,11 +11,13 @@ public final class CompatibilityModels {
 
 	public enum Operator {
 
-		EQUALS, LIST_CONTAINS, LIST_INTERSECTS, LTE, LTE_SPACE_WIDTH, LTE_SPACE_DEPTH, REQUIRES_CATEGORY_UNLESS;
+		EQUALS, LIST_CONTAINS, LIST_INTERSECTS, LIST_DISJOINT, LTE, MAX_DIFFERENCE, LTE_SPACE_WIDTH, LTE_SPACE_DEPTH,
+		REQUIRES_CATEGORY_UNLESS;
 
-		/** Compares a product with a product of another category. */
+		/** Compares a product with another product of the bundle. */
 		public boolean pairwise() {
-			return this == EQUALS || this == LIST_CONTAINS || this == LIST_INTERSECTS || this == LTE;
+			return this == EQUALS || this == LIST_CONTAINS || this == LIST_INTERSECTS || this == LIST_DISJOINT
+					|| this == LTE || this == MAX_DIFFERENCE;
 		}
 
 		/** Compares a product with the customer's available space. */
@@ -38,16 +40,29 @@ public final class CompatibilityModels {
 	public record Rule(String code, String sourceCategory, String targetCategory, Operator operator, String sourceAttr,
 			String targetAttr, String value, Severity severity, String label, String message) {
 
+		/** Category placeholder of rules that apply to every category (e.g. "same wardrobe"). */
+		public static final String ANY = "*";
+
+		/** True when a rule category ({@link #ANY} or a slug) covers a product category. */
+		public static boolean matchesCategory(String ruleCategory, String categorySlug) {
+			return ruleCategory != null && (ANY.equals(ruleCategory) || ruleCategory.equals(categorySlug));
+		}
+
+		/** Applies between every two pieces, whatever their categories. */
+		public boolean universal() {
+			return ANY.equals(sourceCategory) && ANY.equals(targetCategory);
+		}
+
 		public boolean involves(String categorySlug) {
-			return categorySlug.equals(sourceCategory) || categorySlug.equals(targetCategory);
+			return matchesCategory(sourceCategory, categorySlug) || matchesCategory(targetCategory, categorySlug);
 		}
 
 		/** Attribute of {@code categorySlug} that this rule reads, or null. */
 		public String attributeFor(String categorySlug) {
-			if (categorySlug.equals(sourceCategory)) {
+			if (matchesCategory(sourceCategory, categorySlug)) {
 				return sourceAttr;
 			}
-			if (categorySlug.equals(targetCategory)) {
+			if (matchesCategory(targetCategory, categorySlug)) {
 				return targetAttr;
 			}
 			return null;

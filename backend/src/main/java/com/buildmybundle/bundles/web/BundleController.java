@@ -90,7 +90,7 @@ class BundleController {
 	@PatchMapping("/bundles/{id}/items/{category}")
 	BundleView update(@PathVariable UUID id, @PathVariable String category,
 			@AuthenticationPrincipal AuthenticatedUser user, @Valid @RequestBody UpdateRequest body) {
-		return bundles.updateItem(id, user.getId(), category, body.quantity(), body.locked());
+		return bundles.updateItem(id, user.getId(), category, body.quantity(), body.locked(), body.variantId());
 	}
 
 	@Operation(summary = "Remove an optional item")
@@ -134,7 +134,8 @@ class BundleController {
 	record ReplaceRequest(@NotNull Long productId) {
 	}
 
-	record UpdateRequest(@Min(1) @Max(10) Integer quantity, Boolean locked) {
+	/** Any of: quantity, lock, and the size and color (variantId) of the item's product. */
+	record UpdateRequest(@Min(1) @Max(10) Integer quantity, Boolean locked, Long variantId) {
 	}
 
 	record AddRequest(@NotNull Long productId, @Min(1) @Max(10) Integer quantity) {
