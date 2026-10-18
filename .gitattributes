@@ -1,0 +1,5 @@
+# Shell scripts run in Linux containers and CI: always LF, whatever the checkout platform
+*.sh text eol=lf
+backend/mvnw text eol=lf
+frontend/nginx.conf text eol=lf
+frontend/security-headers.conf text eol=lf
