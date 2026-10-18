@@ -1,24 +1,25 @@
-import { ShieldCheck, ShoppingCart, Truck } from 'lucide-react';
-import { useState } from 'react';
+import clsx from 'clsx';
+import { RotateCcw, ShieldCheck, ShoppingBag, Sparkles, Truck } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { Alert } from '../../components/ui/Alert';
 import { Button, buttonClasses } from '../../components/ui/Button';
 import { QuantityStepper } from '../../components/ui/QuantityStepper';
 import { PageSpinner } from '../../components/ui/Spinner';
 import { ApiError } from '../../lib/api';
-import { formatMoney } from '../../lib/format';
 import { useAddToCart } from '../cart/api';
 import { useProduct } from './api';
-import type { ProductDetail } from './types';
 import { formatAttribute } from './attributes';
+import { GarmentArt, garmentKind } from './components/GarmentArt';
+import { Price, ProductBadges } from './components/Merchandising';
 import { ProductCard } from './components/ProductCard';
-import { ProductImage } from './components/ProductImage';
 import { Rating } from './components/Rating';
 import { StockBadge } from './components/StockBadge';
+import { useVariantSelection, VariantPicker } from './components/VariantPicker';
 import { WishlistButton } from './components/WishlistButton';
+import type { ProductDetail } from './types';
 
 const MAX_PER_ORDER = 99;
-const tierLabels = ['', 'Budget pick', 'Mid-range', 'Premium'];
 
 export function ProductPage() {
   const { slug = '' } = useParams();
@@ -29,188 +30,209 @@ export function ProductPage() {
     const notFound = error instanceof ApiError && error.status === 404;
     return (
       <div className="mx-auto max-w-xl px-4 py-24 text-center">
-        <h1 className="text-2xl font-bold">{notFound ? 'Product not found' : 'Something went wrong'}</h1>
+        <h1 className="font-display text-3xl font-semibold">{notFound ? 'Product not found' : 'Something went wrong'}</h1>
         <p className="mt-2 text-slate-600">{notFound ? 'This product may have been removed.' : error.message}</p>
         <Link to="/shop" className={buttonClasses('primary', 'md', 'mt-6')}>Continue shopping</Link>
       </div>
     );
   }
 
-  // keyed by product so quantity resets when navigating to a related product
+  // keyed by product so the selection resets when navigating to another product
   return <ProductView key={data.product.id} detail={data} />;
 }
 
 function ProductView({ detail }: { detail: ProductDetail }) {
   const [quantity, setQuantity] = useState(1);
   const { addToCart, isPending: adding } = useAddToCart();
-  const { product, department, attributes, description, images, related, variants } = detail;
-
-  // size × color selection; products sold in a single option need no choice
-  const colors = [...new Map(variants.map((v) => [v.color, v])).values()];
-  const sizes = [...new Set(variants.map((v) => v.size))];
-  const singleOption = variants.length <= 1;
-  const [color, setColor] = useState(
-    () => (colors.find((c) => variants.some((v) => v.color === c.color && v.availableQuantity > 0)) ?? colors[0])?.color,
-  );
-  const [size, setSize] = useState<string | null>(singleOption || sizes.length === 1 ? (sizes[0] ?? null) : null);
-  const variant = variants.find((v) => v.color === color && v.size === size);
-  const stock = singleOption ? (variants[0]?.availableQuantity ?? product.availableQuantity) : (variant?.availableQuantity ?? 0);
-  const purchasable = product.active && (singleOption || !!variant) && stock > 0;
+  const { product, department, attributes, description, related, variants, completeTheLook } = detail;
+  const selection = useVariantSelection(variants);
+  const { singleOption, variant, stock, needsSize } = selection;
+  const purchasable = product.active && !!variant && stock > 0;
   const maxQuantity = Math.max(1, Math.min(stock, MAX_PER_ORDER));
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
       <nav aria-label="Breadcrumb" className="text-sm text-slate-500">
-        <Link to="/shop" className="hover:text-slate-800">Shop</Link>
+        <Link to="/" className="hover:text-slate-900">Home</Link>
         {department && (
           <>
             <span className="mx-1.5">/</span>
-            <Link to={`/shop?category=${department.slug}`} className="hover:text-slate-800">{department.name}</Link>
+            <Link to={`/shop?category=${department.slug}`} className="hover:text-slate-900">{department.name}</Link>
           </>
         )}
         <span className="mx-1.5">/</span>
-        <Link to={`/shop?category=${product.categorySlug}`} className="hover:text-slate-800">{product.categoryName}</Link>
+        <Link to={`/shop?category=${product.categorySlug}`} className="hover:text-slate-900">{product.categoryName}</Link>
       </nav>
 
-      <div className="mt-6 grid gap-8 lg:grid-cols-2 lg:gap-12">
-        <ProductImage categorySlug={product.categorySlug} imageUrl={images[0]?.url} alt={images[0]?.altText ?? product.name} size="lg" />
+      <div className="mt-6 grid gap-8 lg:grid-cols-[1.1fr_1fr] lg:gap-14">
+        <Gallery detail={detail} color={selection.color} colorHex={selection.colorHex} onPickColor={selection.setColor} />
 
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-brand-700">{product.brand}</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight">{product.name}</h1>
+        <div className="lg:py-2">
+          <Link to={`/brands/${detail.brandInfo.slug}`} className="text-xs font-bold uppercase tracking-[0.16em] text-violet-700 hover:underline">
+            {product.brand}
+          </Link>
+          <h1 className="mt-2 font-display text-3xl font-semibold leading-tight sm:text-4xl">{product.name}</h1>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <Rating value={product.ratingAvg} count={product.ratingCount} size="md" />
-            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
-              {tierLabels[product.qualityTier]}
-            </span>
+            <ProductBadges product={product} className="flex-row" />
           </div>
-          <p className="mt-5 text-3xl font-bold">{formatMoney(product.price)}</p>
-          <StockBadge available={singleOption || variant ? stock : product.availableQuantity} active={product.active} className="mt-1 text-sm" />
-          <p className="mt-5 leading-relaxed text-slate-700">{description}</p>
+          <div className="mt-5"><Price price={product.price} compareAtPrice={product.compareAtPrice} size="lg" /></div>
 
-          {!singleOption && (
-            <div className="mt-6 space-y-4">
-              {colors.length > 1 || colors[0]?.color !== 'Standard' ? (
-                <fieldset>
-                  <legend className="text-sm font-semibold">Color: <span className="font-normal text-slate-600">{color}</span></legend>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {colors.map((c) => (
-                      <button
-                        key={c.color}
-                        type="button"
-                        aria-pressed={c.color === color}
-                        aria-label={c.color}
-                        title={c.color}
-                        onClick={() => setColor(c.color)}
-                        className={`size-9 rounded-full ring-2 ring-offset-2 ${c.color === color ? 'ring-slate-900' : 'ring-transparent hover:ring-slate-300'}`}
-                        style={{ backgroundColor: c.colorHex ?? '#ddd' }}
-                      />
-                    ))}
-                  </div>
-                </fieldset>
-              ) : null}
-              {sizes.length > 1 && (
-                <fieldset>
-                  <legend className="text-sm font-semibold">Size{size ? `: ${size}` : ''}</legend>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {sizes.map((s) => {
-                      const option = variants.find((v) => v.color === color && v.size === s);
-                      const soldOut = !option || option.availableQuantity === 0;
-                      return (
-                        <button
-                          key={s}
-                          type="button"
-                          aria-pressed={s === size}
-                          disabled={soldOut}
-                          onClick={() => setSize(s)}
-                          className={`h-10 min-w-12 rounded-lg border px-3 text-sm font-medium ${
-                            s === size ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white hover:border-slate-500'
-                          } disabled:cursor-not-allowed disabled:text-slate-300 disabled:line-through`}
-                        >
-                          {s}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </fieldset>
-              )}
-            </div>
-          )}
+          <div className="mt-6">
+            <VariantPicker selection={selection} variants={variants} sizeScale={detail.sizeScale} />
+          </div>
+          <StockBadge available={variant ? stock : product.availableQuantity} active={product.active} className="mt-4 text-sm" />
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
+          <div className="mt-5 flex flex-wrap items-center gap-3">
             {purchasable && <QuantityStepper value={quantity} max={maxQuantity} onChange={setQuantity} />}
             <Button
               size="lg"
+              className="min-w-48 flex-1"
               disabled={!purchasable}
               isLoading={adding}
-              onClick={() => addToCart(product.id, quantity, product.name, singleOption ? variants[0]?.id : variant?.id)}
+              onClick={() => addToCart(product.id, quantity, product.name, variant?.id)}
             >
-              <ShoppingCart className="size-5" aria-hidden="true" />
-              {!product.active ? 'Currently unavailable' : !singleOption && !size ? 'Choose a size' : stock > 0 ? 'Add to cart' : 'Sold out in this size'}
+              <ShoppingBag className="size-5" aria-hidden="true" />
+              {!product.active ? 'Currently unavailable' : needsSize ? 'Choose a size' : stock > 0 ? 'Add to cart' : singleOption ? 'Sold out' : 'Sold out in this size'}
             </Button>
             <WishlistButton productId={product.id} productName={product.name} withLabel />
           </div>
 
-          <ul className="mt-6 space-y-2 text-sm text-slate-600">
-            <li className="flex items-center gap-2"><Truck className="size-4 text-brand-600" aria-hidden="true" /> Free shipping on orders over $100</li>
-            <li className="flex items-center gap-2"><ShieldCheck className="size-4 text-brand-600" aria-hidden="true" /> Cancel any time before your order ships</li>
+          <ul className="mt-6 grid gap-2 rounded-2xl bg-white p-4 text-sm text-slate-700 shadow-card sm:grid-cols-3">
+            <li className="flex items-center gap-2"><Truck className="size-4 text-brand-600" aria-hidden="true" /> Free shipping over $100</li>
+            <li className="flex items-center gap-2"><RotateCcw className="size-4 text-brand-600" aria-hidden="true" /> Cancel before it ships</li>
+            <li className="flex items-center gap-2"><ShieldCheck className="size-4 text-brand-600" aria-hidden="true" /> Secure checkout</li>
           </ul>
+
+          <div className="mt-6 divide-y divide-slate-200 border-y border-slate-200">
+            <Details title="Description" open>
+              <p className="leading-relaxed text-slate-700">{description}</p>
+              {detail.styles.length + detail.occasions.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {detail.styles.map((s) => (
+                    <Link key={s.slug} to={`/shop?style=${s.slug}`} className="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-800 hover:bg-violet-200">{s.name}</Link>
+                  ))}
+                  {detail.occasions.map((o) => (
+                    <Link key={o.slug} to={`/shop?occasion=${o.slug}`} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200">{o.name}</Link>
+                  ))}
+                </div>
+              )}
+            </Details>
+            {(detail.material || detail.care) && (
+              <Details title="Material and care">
+                {detail.material && <p className="text-slate-700"><span className="font-semibold">Material:</span> {detail.material}</p>}
+                {detail.care && <p className="mt-1 text-slate-700"><span className="font-semibold">Care:</span> {detail.care}</p>}
+              </Details>
+            )}
+            {attributes.length > 0 && (
+              <Details title="Fit and details">
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                  {attributes.filter((a) => a.key !== 'formality').map((a) => (
+                    <div key={a.key} className="contents">
+                      <dt className="text-slate-500">{a.label}</dt>
+                      <dd className="font-medium text-slate-900">{formatAttribute(a)}</dd>
+                    </div>
+                  ))}
+                  <dt className="text-slate-500">SKU</dt>
+                  <dd className="font-mono text-slate-900">{variant?.sku ?? product.sku}</dd>
+                </dl>
+              </Details>
+            )}
+          </div>
         </div>
       </div>
 
-      {attributes.length > 0 && (
-        <section className="mt-12" aria-labelledby="specs">
-          <h2 id="specs" className="text-xl font-bold">Specifications</h2>
-          <dl className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            {attributes.map((attribute, i) => (
-              <div key={attribute.key} className={`grid grid-cols-2 gap-4 px-5 py-3 text-sm sm:grid-cols-3 ${i % 2 ? 'bg-slate-50' : ''}`}>
-                <dt className="font-medium text-slate-600">{attribute.label}</dt>
-                <dd className="text-slate-900 sm:col-span-2">{formatAttribute(attribute)}</dd>
-              </div>
-            ))}
-            <div className={`grid grid-cols-2 gap-4 px-5 py-3 text-sm sm:grid-cols-3 ${attributes.length % 2 ? 'bg-slate-50' : ''}`}>
-              <dt className="font-medium text-slate-600">SKU</dt>
-              <dd className="font-mono text-slate-900 sm:col-span-2">{product.sku}</dd>
+      {completeTheLook.length > 0 && (
+        <section className="mt-16" aria-labelledby="look">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-brand-600">Complete the look</p>
+              <h2 id="look" className="mt-1 font-display text-2xl font-semibold sm:text-3xl">Pieces that pair with it</h2>
             </div>
-          </dl>
-        </section>
-      )}
-
-      {(detail.material || detail.care) && (
-        <section className="mt-12" aria-labelledby="care">
-          <h2 id="care" className="text-xl font-bold">Material and care</h2>
-          {detail.material && <p className="mt-3 text-slate-700">{detail.material}</p>}
-          {detail.care && <p className="mt-1 text-slate-600">{detail.care}</p>}
-        </section>
-      )}
-
-      {detail.completeTheLook.length > 0 && (
-        <section className="mt-12" aria-labelledby="look">
-          <h2 id="look" className="text-xl font-bold">Complete the look</h2>
-          <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
-            {detail.completeTheLook.map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
+            <Link to="/outfit" className={buttonClasses('secondary', 'md')}>
+              <Sparkles className="size-4" aria-hidden="true" /> Build a whole outfit
+            </Link>
+          </div>
+          <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 md:grid-cols-4">
+            {completeTheLook.map((p) => <ProductCard key={p.id} product={p} />)}
           </div>
         </section>
       )}
 
       {related.length > 0 && (
-        <section className="mt-12" aria-labelledby="related">
-          <h2 id="related" className="text-xl font-bold">More in {product.categoryName}</h2>
-          <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
-            {related.map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
+        <section className="mt-16" aria-labelledby="related">
+          <h2 id="related" className="font-display text-2xl font-semibold sm:text-3xl">More {product.categoryName.toLowerCase()}</h2>
+          <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 md:grid-cols-4">
+            {related.map((p) => <ProductCard key={p.id} product={p} />)}
           </div>
         </section>
       )}
 
       {!product.active && (
-        <div className="mt-8">
-          <Alert tone="info">This product has been discontinued.</Alert>
-        </div>
+        <div className="mt-8"><Alert tone="info">This product has been discontinued.</Alert></div>
       )}
     </div>
+  );
+}
+
+/** Photos for the chosen color when uploaded, otherwise the illustration with the other colorways as thumbnails. */
+function Gallery({ detail, color, colorHex, onPickColor }: {
+  detail: ProductDetail;
+  color: string | undefined;
+  colorHex: string | null;
+  onPickColor: (color: string) => void;
+}) {
+  const photos = detail.images.filter((i) => !i.color || i.color === color);
+  const [index, setIndex] = useState(0);
+  const kind = garmentKind(detail.product.categorySlug);
+  const colors = [...new Map(detail.variants.map((v) => [v.color, v])).values()].filter((c) => c.color !== 'Standard');
+
+  if (photos.length > 0) {
+    const current = photos[Math.min(index, photos.length - 1)];
+    return (
+      <div className="lg:sticky lg:top-24 lg:self-start">
+        <img src={current.url} alt={current.altText ?? detail.product.name} className="aspect-[5/6] w-full rounded-3xl object-cover shadow-card" />
+        {photos.length > 1 && (
+          <div className="mt-3 flex gap-3 overflow-x-auto no-scrollbar">
+            {photos.map((p, i) => (
+              <button key={p.url} type="button" onClick={() => setIndex(i)} aria-label={`Photo ${i + 1}`} aria-pressed={i === index}
+                className={clsx('w-20 shrink-0 overflow-hidden rounded-xl ring-2', i === index ? 'ring-slate-900' : 'ring-transparent')}>
+                <img src={p.url} alt="" className="aspect-[5/6] w-full object-cover" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="lg:sticky lg:top-24 lg:self-start">
+      <div className="overflow-hidden rounded-3xl shadow-card">
+        <GarmentArt kind={kind} color={colorHex} label={`${detail.product.name}${color && color !== 'Standard' ? ` in ${color}` : ''}`} className="aspect-[5/6]" />
+      </div>
+      {colors.length > 1 && (
+        <div className="mt-3 flex gap-3 overflow-x-auto no-scrollbar" aria-label="Colorways">
+          {colors.map((c) => (
+            <button key={c.color} type="button" onClick={() => onPickColor(c.color)} aria-label={`Show ${c.color}`} aria-pressed={c.color === color}
+              className={clsx('w-20 shrink-0 overflow-hidden rounded-xl ring-2 transition', c.color === color ? 'ring-slate-900' : 'ring-transparent hover:ring-slate-300')}>
+              <GarmentArt kind={kind} color={c.colorHex} className="aspect-[5/6]" />
+            </button>
+          ))}
+        </div>
+      )}
+      <p className="mt-3 text-xs text-slate-500">Illustration shown. Demo store: products are fictional sample data.</p>
+    </div>
+  );
+}
+
+function Details({ title, open = false, children }: { title: string; open?: boolean; children: ReactNode }) {
+  return (
+    <details open={open} className="group py-4">
+      <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-bold uppercase tracking-wider">
+        {title}
+        <span className="text-lg text-slate-400 transition-transform group-open:rotate-45" aria-hidden="true">+</span>
+      </summary>
+      <div className="mt-3 text-sm">{children}</div>
+    </details>
   );
 }

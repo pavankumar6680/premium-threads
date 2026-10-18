@@ -1,22 +1,70 @@
 @import "tailwindcss";
 
+/*
+ * BuildMyBundle fashion design system.
+ *   canvas  #FAF8F5 warm off-white (slate-50)     ink     #181818 charcoal (slate-900)
+ *   coral   #F04452 primary accent (brand-500)    violet  #6741D9 secondary accent (violet-600)
+ *   lavender #F0E9FF highlight (violet-100)       cards   #FFFFFF
+ * Tailwind's cool slate scale is replaced by warm neutrals so every component inherits the palette.
+ * Buttons use brand-600 (#DD2A3A): white text on #F04452 would miss WCAG AA contrast.
+ */
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Manrope", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Playfair Display", ui-serif, Georgia, "Times New Roman", serif;
 
-  --color-brand-50: #eef5ff;
-  --color-brand-100: #d9e8ff;
-  --color-brand-200: #bcd7ff;
-  --color-brand-300: #8ebeff;
-  --color-brand-400: #599aff;
-  --color-brand-500: #3376fc;
-  --color-brand-600: #1d5ef1;
-  --color-brand-700: #1549de;
-  --color-brand-800: #183db4;
-  --color-brand-900: #1a388d;
-  --color-brand-950: #152456;
+  --color-brand-50: #fef2f3;
+  --color-brand-100: #fde3e5;
+  --color-brand-200: #fbcbd0;
+  --color-brand-300: #f8a4ac;
+  --color-brand-400: #f4707c;
+  --color-brand-500: #f04452;
+  --color-brand-600: #dd2a3a;
+  --color-brand-700: #ba1f2e;
+  --color-brand-800: #9a1d2a;
+  --color-brand-900: #811d28;
+  --color-brand-950: #470a11;
+
+  --color-violet-50: #f7f3ff;
+  --color-violet-100: #f0e9ff;
+  --color-violet-200: #e0d2ff;
+  --color-violet-300: #c7aeff;
+  --color-violet-400: #a47ff5;
+  --color-violet-500: #8259ea;
+  --color-violet-600: #6741d9;
+  --color-violet-700: #5532bd;
+  --color-violet-800: #452a98;
+  --color-violet-900: #39267a;
+  --color-violet-950: #231551;
+
+  --color-slate-50: #faf8f5;
+  --color-slate-100: #f3f0eb;
+  --color-slate-200: #e7e2da;
+  --color-slate-300: #d5cec4;
+  --color-slate-400: #a8a097;
+  --color-slate-500: #7d766e;
+  --color-slate-600: #5e5852;
+  --color-slate-700: #45403c;
+  --color-slate-800: #2c2926;
+  --color-slate-900: #181818;
+  --color-slate-950: #0e0e0e;
 
   --color-accent-400: #fbbf24;
   --color-accent-500: #f59e0b;
+
+  --shadow-card: 0 1px 2px rgb(24 24 24 / 0.04), 0 8px 24px -12px rgb(24 24 24 / 0.12);
+  --shadow-lift: 0 2px 4px rgb(24 24 24 / 0.05), 0 18px 40px -16px rgb(24 24 24 / 0.22);
+
+  --animate-fade-up: fade-up 0.5s ease-out both;
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
 }
 
 @layer base {
@@ -29,6 +77,23 @@
   }
 
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-brand-500;
+    @apply outline-2 outline-offset-2 outline-violet-600;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* Horizontal scrollers (carousels) without a visible scrollbar */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
   }
 }

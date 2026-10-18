@@ -29,6 +29,11 @@ public class ProductCatalog {
 		return Optional.ofNullable(findByIds(List.of(productId)).get(productId));
 	}
 
+	/** Listing cards (colors, sizes, badges, live stock) for specific products, in the order requested. */
+	public List<ProductCard> cards(List<Long> productIds) {
+		return catalog.cardsByIds(productIds);
+	}
+
 	/** Variants by id (active and inactive) with live stock. Missing ids are absent. */
 	public Map<Long, VariantSummary> findVariants(Collection<Long> variantIds) {
 		return catalog.variants(variantIds);

@@ -1,26 +1,25 @@
 import clsx from 'clsx';
-import { categoryVisual } from '../categoryVisuals';
+import { GarmentArt, garmentKind } from './GarmentArt';
 
-/** Shows the product's first image, or an illustrated category tile when the product has no photo. */
-export function ProductImage({ categorySlug, imageUrl, alt, size = 'md', className }: {
+/**
+ * A product picture: the uploaded photo when there is one, otherwise the garment illustration in the
+ * selected color. Portrait 5:6, like fashion photography.
+ */
+export function ProductImage({ categorySlug, imageUrl, colorHex, alt, className }: {
   categorySlug: string;
   imageUrl?: string | null;
+  colorHex?: string | null;
   alt: string;
+  /** kept for older callers; pictures scale with their container */
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }) {
   if (imageUrl) {
-    return <img src={imageUrl} alt={alt} className={clsx('aspect-square w-full rounded-xl object-cover', className)} />;
+    return <img src={imageUrl} alt={alt} loading="lazy" className={clsx('aspect-[5/6] w-full rounded-xl object-cover', className)} />;
   }
-  const { icon: Icon, tile } = categoryVisual(categorySlug);
-  const iconSize = { sm: 'size-7', md: 'size-14', lg: 'size-28' }[size];
   return (
-    <div
-      role="img"
-      aria-label={alt}
-      className={clsx('flex aspect-square w-full items-center justify-center rounded-xl bg-gradient-to-br', tile, className)}
-    >
-      <Icon className={clsx(iconSize, 'opacity-80')} strokeWidth={1.5} aria-hidden="true" />
+    <div className={clsx('aspect-[5/6] w-full overflow-hidden rounded-xl', className)}>
+      <GarmentArt kind={garmentKind(categorySlug)} color={colorHex} label={alt} />
     </div>
   );
 }

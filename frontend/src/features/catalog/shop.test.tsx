@@ -1,25 +1,25 @@
 import { screen, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
-import { ada, emptyCart, pageOf, product, card } from '../../test/fixtures';
+import { ada, emptyCart, pageOf, card } from '../../test/fixtures';
 import { location, renderApp } from '../../test/renderApp';
 import { apiPath, server } from '../../test/server';
 import type { CategoryNode, ProductDetail } from './types';
 
-const vantix = product();
-const pixelon = product({ id: 11, sku: 'MON-004', slug: 'pixelon-24', name: 'Pixelon 24 Gaming Monitor', brand: 'Pixelon', price: 179 });
+const vantix = card();
+const pixelon = card({ id: 11, sku: 'MON-004', slug: 'pixelon-24', name: 'Pixelon 24 Gaming Monitor', brand: 'Pixelon', price: 179 });
 
 const categories: CategoryNode[] = [
   {
-    id: 2, slug: 'computers', name: 'Computers & Accessories', description: null, productCount: 2,
-    children: [{ id: 7, slug: 'monitors', name: 'Monitors', description: null, productCount: 2, children: [] }],
+    id: 2, slug: 'men', name: 'Men', description: null, productCount: 2,
+    children: [{ id: 7, slug: 'men-jeans', name: 'Jeans', description: null, productCount: 2, children: [] }],
   },
 ];
 
 const detail: ProductDetail = {
-  product: card(vantix),
+  product: vantix,
   description: 'A sharp 27-inch monitor.',
-  department: { slug: 'computers', name: 'Computers & Accessories' },
+  department: { slug: 'men', name: 'Men' },
   brandInfo: { slug: 'vantix', name: 'Vantix', description: '' },
   sizeScale: 'ONE_SIZE',
   material: null,
@@ -54,9 +54,9 @@ describe('shop', () => {
       }),
     );
 
-    const { user } = renderApp('/shop?category=monitors');
+    const { user } = renderApp('/shop?category=men-jeans');
 
-    expect(await screen.findByRole('heading', { name: 'Monitors', level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: "Men's jeans", level: 1 })).toBeInTheDocument();
     const results = screen.getByRole('region', { name: 'Products' });
     expect(await within(results).findByText('Vantix 27 QHD Monitor')).toBeInTheDocument();
     expect(within(results).getByText('Pixelon 24 Gaming Monitor')).toBeInTheDocument();
@@ -66,7 +66,7 @@ describe('shop', () => {
     await expect.poll(() => within(results).queryByText('Vantix 27 QHD Monitor')).toBeNull();
     expect(within(results).getByText('Pixelon 24 Gaming Monitor')).toBeInTheDocument();
     expect(location.current.search).toContain('brand=Pixelon');
-    expect(requested.at(-1)).toContain('category=monitors');
+    expect(requested.at(-1)).toContain('category=men-jeans');
     expect(requested.at(-1)).toContain('brand=Pixelon');
   });
 

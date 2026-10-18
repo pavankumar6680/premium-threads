@@ -21,8 +21,10 @@ export const defaultHandlers = [
   http.get(apiPath('/auth/me'), () => problem(401, 'UNAUTHENTICATED', 'Sign in')),
   http.get(apiPath('/categories'), () => HttpResponse.json([])),
   http.get(apiPath('/products/facets'), () =>
-    HttpResponse.json({ brands: [], minPrice: null, maxPrice: null, attributes: [] }),
+    HttpResponse.json({ brands: [], minPrice: null, maxPrice: null, sizes: [], colors: [], styles: [], attributes: [] }),
   ),
+  http.get(apiPath('/brands'), () => HttpResponse.json([])),
+  http.get(apiPath('/vocabulary'), () => HttpResponse.json({ styles: [], occasions: [] })),
   http.get(apiPath('/products'), () => HttpResponse.json(emptyPage)),
   http.get(apiPath('/cart'), () => HttpResponse.json(emptyCart)),
   http.get(apiPath('/wishlist'), () => HttpResponse.json([])),

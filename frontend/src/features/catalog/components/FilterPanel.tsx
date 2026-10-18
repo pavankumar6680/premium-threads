@@ -3,17 +3,20 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { Button } from '../../../components/ui/Button';
 import { formatAttributeValue } from '../attributes';
-import type { CategoryNode, Facets } from '../types';
+import type { CategoryNode, Facets, NamedRef } from '../types';
 
 type Props = {
   params: URLSearchParams;
   categories: CategoryNode[];
   facets: Facets | undefined;
+  styles?: NamedRef[];
   onToggle: (key: string, value: string) => void;
   onSet: (updates: Record<string, string | null>) => void;
 };
 
-export function FilterPanel({ params, categories, facets, onToggle, onSet }: Props) {
+export const FLAG_LABELS: Record<string, string> = { sale: 'On sale', new: 'New arrivals', trending: 'Trending', featured: 'Featured' };
+
+export function FilterPanel({ params, categories, facets, styles = [], onToggle, onSet }: Props) {
   const current = params.get('category');
   const activeDepartment = categories.find((d) => d.slug === current || d.children.some((c) => c.slug === current));
 
@@ -22,7 +25,7 @@ export function FilterPanel({ params, categories, facets, onToggle, onSet }: Pro
       <FilterSection title="Categories">
         <ul className="space-y-1 text-sm">
           <li>
-            <CategoryLink params={params} slug={null} active={!current} label="All products" />
+            <CategoryLink params={params} slug={null} active={!current} label="All fashion" />
           </li>
           {categories.map((dept) => (
             <li key={dept.slug}>
@@ -40,6 +43,65 @@ export function FilterPanel({ params, categories, facets, onToggle, onSet }: Pro
           ))}
         </ul>
       </FilterSection>
+
+      <FilterSection title="Offers">
+        <div className="flex flex-wrap gap-2">
+          {['sale', 'new', 'trending'].map((flag) => (
+            <Chip key={flag} selected={params.getAll('flag').includes(flag)} onClick={() => onToggle('flag', flag)}>
+              {FLAG_LABELS[flag]}
+            </Chip>
+          ))}
+        </div>
+      </FilterSection>
+
+      {facets?.sizes && facets.sizes.length > 1 && (
+        <FilterSection title="Size (in stock)">
+          <div className="flex flex-wrap gap-2">
+            {facets.sizes.map((s) => (
+              <Chip key={s.value} selected={params.getAll('sizes').includes(s.value)} onClick={() => onToggle('sizes', s.value)} square>
+                {s.value}
+              </Chip>
+            ))}
+          </div>
+        </FilterSection>
+      )}
+
+      {facets?.colors && facets.colors.length > 1 && (
+        <FilterSection title="Color">
+          <div className="grid grid-cols-6 gap-2 lg:grid-cols-5">
+            {facets.colors.map((c) => {
+              const selected = params.getAll('color').includes(c.value);
+              return (
+                <button
+                  key={c.value}
+                  type="button"
+                  aria-pressed={selected}
+                  aria-label={`${c.value} (${c.count})`}
+                  title={`${c.value} (${c.count})`}
+                  onClick={() => onToggle('color', c.value)}
+                  className={clsx(
+                    'size-8 rounded-full ring-1 ring-black/10 transition-transform hover:scale-110',
+                    selected && 'ring-2 ring-slate-900 ring-offset-2',
+                  )}
+                  style={{ backgroundColor: c.hex ?? '#ddd' }}
+                />
+              );
+            })}
+          </div>
+        </FilterSection>
+      )}
+
+      {facets?.styles && facets.styles.length > 0 && (
+        <FilterSection title="Style">
+          <div className="flex flex-wrap gap-2">
+            {facets.styles.map((s) => (
+              <Chip key={s.value} selected={params.getAll('style').includes(s.value)} onClick={() => onToggle('style', s.value)}>
+                {styles.find((x) => x.slug === s.value)?.name ?? s.value}
+              </Chip>
+            ))}
+          </div>
+        </FilterSection>
+      )}
 
       {facets && facets.brands.length > 1 && (
         <FilterSection title="Brand">
@@ -102,10 +164,32 @@ export function FilterPanel({ params, categories, facets, onToggle, onSet }: Pro
   );
 }
 
+function Chip({ selected, onClick, square = false, children }: {
+  selected: boolean;
+  onClick: () => void;
+  square?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onClick}
+      className={clsx(
+        'h-8 rounded-full border text-xs font-semibold transition-colors',
+        square ? 'min-w-10 px-2.5' : 'px-3',
+        selected ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-slate-500',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
 function FilterSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <fieldset>
-      <legend className="mb-2 text-sm font-semibold text-slate-900">{title}</legend>
+      <legend className="mb-2.5 text-xs font-bold uppercase tracking-wider text-slate-900">{title}</legend>
       {children}
     </fieldset>
   );
@@ -128,8 +212,8 @@ function CategoryLink({ params, slug, label, count, active }: {
       to={`/shop?${next.toString()}`}
       aria-current={active ? 'page' : undefined}
       className={clsx(
-        'flex items-center justify-between rounded-md px-2 py-1 hover:bg-slate-100',
-        active ? 'bg-brand-50 font-semibold text-brand-800' : 'text-slate-700',
+        'flex items-center justify-between rounded-lg px-2 py-1.5 hover:bg-slate-100',
+        active ? 'bg-violet-100 font-semibold text-violet-800' : 'text-slate-700',
       )}
     >
       <span>{label}</span>
@@ -165,7 +249,7 @@ function CheckboxList({ name, options, selected, onToggle }: {
         </label>
       ))}
       {options.length > VISIBLE_OPTIONS && (
-        <button type="button" className="text-xs font-semibold text-brand-700 hover:underline" onClick={() => setExpanded((e) => !e)}>
+        <button type="button" className="text-xs font-semibold text-violet-700 hover:underline" onClick={() => setExpanded((e) => !e)}>
           {expanded ? 'Show less' : `Show all ${options.length}`}
         </button>
       )}

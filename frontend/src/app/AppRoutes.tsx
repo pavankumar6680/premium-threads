@@ -8,6 +8,7 @@ import { RequireAuth } from '../features/auth/RequireAuth';
 import { BundleWorkspacePage } from '../features/bundles/BundleWorkspacePage';
 import { MyBundlesPage } from '../features/bundles/MyBundlesPage';
 import { CartPage } from '../features/cart/CartPage';
+import { BrandPage, BrandsPage } from '../features/catalog/BrandsPage';
 import { CatalogPage } from '../features/catalog/CatalogPage';
 import { ProductPage } from '../features/catalog/ProductPage';
 import { CheckoutPage } from '../features/checkout/CheckoutPage';
@@ -31,6 +32,9 @@ export function AppRoutes() {
         <Route index element={<HomePage />} />
         <Route path="shop" element={<CatalogPage />} />
         <Route path="products/:slug" element={<ProductPage />} />
+        <Route path="brands" element={<BrandsPage />} />
+        <Route path="brands/:slug" element={<BrandPage />} />
+        <Route path="outfit" element={<GoalsPage />} />
         <Route path="goals" element={<GoalsPage />} />
         <Route path="goals/new" element={<GoalWizardPage />} />
         <Route path="goals/:id" element={<GoalPage />} />

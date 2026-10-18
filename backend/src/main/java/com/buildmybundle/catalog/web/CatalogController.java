@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 import com.buildmybundle.catalog.internal.CatalogModels.BrandSummary;
 import com.buildmybundle.catalog.internal.CatalogModels.CategoryNode;
 import com.buildmybundle.catalog.internal.CatalogModels.Facets;
-import com.buildmybundle.catalog.internal.CatalogModels.ProductCard;
+import com.buildmybundle.catalog.ProductCard;
 import com.buildmybundle.catalog.internal.CatalogModels.ProductDetail;
 import com.buildmybundle.catalog.internal.CatalogModels.ProductSort;
 import com.buildmybundle.catalog.internal.CatalogModels.SearchCriteria;

@@ -98,3 +98,16 @@ export type Facets = {
   styles: FacetValue[];
   attributes: { key: string; label: string; type: AttributeValue['type']; unit: string | null; values: FacetValue[] }[];
 };
+
+export type Brand = {
+  id: number;
+  slug: string;
+  name: string;
+  description: string;
+  featured: boolean;
+  productCount: number;
+  /** departments the brand sells in: men, women, accessories */
+  categories: string[];
+};
+
+export type Vocabulary = { styles: NamedRef[]; occasions: NamedRef[] };

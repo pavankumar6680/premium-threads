@@ -1,11 +1,9 @@
 package com.buildmybundle.wishlist;
 
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 
 import com.buildmybundle.catalog.ProductCatalog;
-import com.buildmybundle.catalog.ProductSummary;
+import com.buildmybundle.catalog.ProductCard;
 import com.buildmybundle.shared.error.ApiException;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -29,13 +27,12 @@ public class WishlistService {
 
 	/** Most recently saved first. Discontinued products stay visible (with active=false) until removed. */
 	@Transactional(readOnly = true)
-	public List<ProductSummary> list(Long userId) {
+	public List<ProductCard> list(Long userId) {
 		List<Long> ids = jdbc.sql("SELECT product_id FROM wishlist_items WHERE user_id = :userId ORDER BY added_at DESC")
 			.param("userId", userId)
 			.query(Long.class)
 			.list();
-		Map<Long, ProductSummary> products = catalog.findByIds(ids);
-		return ids.stream().map(products::get).filter(Objects::nonNull).toList();
+		return catalog.cards(ids);
 	}
 
 	public void add(Long userId, Long productId) {

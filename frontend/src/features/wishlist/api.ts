@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { useCurrentUser } from '../auth/hooks';
-import type { ProductSummary } from '../catalog/types';
+import type { ProductCard } from '../catalog/types';
 
 export const wishlistKey = ['wishlist'] as const;
 
@@ -11,7 +11,7 @@ export function useWishlist() {
   const { data: user } = useCurrentUser();
   return useQuery({
     queryKey: wishlistKey,
-    queryFn: () => api.get<ProductSummary[]>('/wishlist'),
+    queryFn: () => api.get<ProductCard[]>('/wishlist'),
     enabled: !!user,
   });
 }

@@ -1,12 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
-import type { CategoryNode, Facets, Page, ProductDetail, ProductSummary } from './types';
+import type { Brand, CategoryNode, Facets, Page, ProductCard, ProductDetail, Vocabulary } from './types';
 
 export const catalogKeys = {
   categories: ['catalog', 'categories'] as const,
   products: (query: string) => ['catalog', 'products', query] as const,
   facets: (query: string) => ['catalog', 'facets', query] as const,
   product: (slug: string) => ['catalog', 'product', slug] as const,
+  brands: ['catalog', 'brands'] as const,
+  brand: (slug: string) => ['catalog', 'brand', slug] as const,
+  vocabulary: ['catalog', 'vocabulary'] as const,
 };
 
 export function useCategories() {
@@ -21,7 +24,7 @@ export function useCategories() {
 export function useProducts(query: string) {
   return useQuery({
     queryKey: catalogKeys.products(query),
-    queryFn: () => api.get<Page<ProductSummary>>(`/products?${query}`),
+    queryFn: () => api.get<Page<ProductCard>>(`/products?${query}`),
     placeholderData: (previous) => previous,
   });
 }
@@ -39,4 +42,17 @@ export function useProduct(slug: string) {
     queryKey: catalogKeys.product(slug),
     queryFn: () => api.get<ProductDetail>(`/products/${encodeURIComponent(slug)}`),
   });
+}
+
+export function useBrands() {
+  return useQuery({ queryKey: catalogKeys.brands, queryFn: () => api.get<Brand[]>('/brands'), staleTime: 10 * 60_000 });
+}
+
+export function useBrand(slug: string) {
+  return useQuery({ queryKey: catalogKeys.brand(slug), queryFn: () => api.get<Brand>(`/brands/${encodeURIComponent(slug)}`) });
+}
+
+/** Styles and occasions (labels for filters and the outfit builder). */
+export function useVocabulary() {
+  return useQuery({ queryKey: catalogKeys.vocabulary, queryFn: () => api.get<Vocabulary>('/vocabulary'), staleTime: 30 * 60_000 });
 }

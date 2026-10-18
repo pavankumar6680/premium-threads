@@ -21,9 +21,9 @@ import com.buildmybundle.catalog.VariantSummary;
 import com.buildmybundle.catalog.internal.CatalogModels.BrandSummary;
 import com.buildmybundle.catalog.internal.CatalogModels.CardRow;
 import com.buildmybundle.catalog.internal.CatalogModels.CategoryNode;
-import com.buildmybundle.catalog.internal.CatalogModels.ColorOption;
+import com.buildmybundle.catalog.ColorOption;
 import com.buildmybundle.catalog.internal.CatalogModels.Facets;
-import com.buildmybundle.catalog.internal.CatalogModels.ProductCard;
+import com.buildmybundle.catalog.ProductCard;
 import com.buildmybundle.catalog.internal.CatalogModels.ProductDetail;
 import com.buildmybundle.catalog.internal.CatalogModels.SearchCriteria;
 import com.buildmybundle.catalog.internal.CatalogModels.Variant;
@@ -111,6 +111,13 @@ public class CatalogService {
 	public Map<Long, ProductSummary> findByIds(Collection<Long> ids) {
 		return withStock(queries.findByIds(ids)).stream()
 			.collect(Collectors.toMap(ProductSummary::id, Function.identity()));
+	}
+
+	/** Listing cards for specific products (any status), in the order requested. */
+	public List<ProductCard> cardsByIds(List<Long> productIds) {
+		Map<Long, ProductCard> byId = cards(queries.cardsByIds(productIds)).stream()
+			.collect(Collectors.toMap(ProductCard::id, Function.identity()));
+		return productIds.stream().map(byId::get).filter(java.util.Objects::nonNull).toList();
 	}
 
 	public Map<Long, VariantSummary> variants(Collection<Long> variantIds) {

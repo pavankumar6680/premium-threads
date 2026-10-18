@@ -3,7 +3,7 @@ package com.buildmybundle.wishlist.web;
 import java.util.List;
 
 import com.buildmybundle.auth.AuthenticatedUser;
-import com.buildmybundle.catalog.ProductSummary;
+import com.buildmybundle.catalog.ProductCard;
 import com.buildmybundle.wishlist.WishlistService;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,7 +30,7 @@ class WishlistController {
 	}
 
 	@GetMapping
-	List<ProductSummary> list(@AuthenticationPrincipal AuthenticatedUser user) {
+	List<ProductCard> list(@AuthenticationPrincipal AuthenticatedUser user) {
 		return wishlist.list(user.getId());
 	}
 
