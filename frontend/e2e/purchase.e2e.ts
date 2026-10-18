@@ -11,7 +11,7 @@ async function signIn(page: Page, email: string, password: string) {
   await expect(page.getByRole('button', { name: /sign out/i })).toBeVisible();
 }
 
-test('a shopper plans an outfit, buys jeans in their size and the store ships them', async ({ page }) => {
+test('a shopper builds an outfit in their size, buys it and the store ships it', async ({ page }) => {
   // 1. A new customer signs up.
   const email = `e2e-${Date.now()}@example.com`;
   await page.goto('/register');
@@ -22,21 +22,28 @@ test('a shopper plans an outfit, buys jeans in their size and the store ships th
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByRole('button', { name: /sign out/i })).toBeVisible();
 
-  // 2. They plan a weekend outfit with the wizard (template defaults) and get three looks.
-  await page.goto('/goals/new?template=weekend-casual-men');
-  await expect(page.getByRole('heading', { name: 'Build your goal' })).toBeVisible();
-  // template defaults are valid, so Continue walks through items, budget and preferences to the review
-  const review = page.getByRole('heading', { name: 'Review your goal' });
-  for (let step = 0; step < 3; step++) {
-    await page.getByRole('button', { name: /continue/i }).click();
-  }
-  await expect(review).toBeVisible(); // the last Continue must not submit the form by itself
-  await page.getByRole('button', { name: /create my goal/i }).click();
-  await page.getByRole('button', { name: 'Get my bundles' }).click();
-  await expect(page.getByRole('heading', { name: 'Your bundles' })).toBeVisible();
-  await expect(page.getByRole('article', { name: /Balanced bundle/ })).toBeVisible();
+  // 2. They build a weekend outfit: wardrobe, occasion, their sizes and a favorite color.
+  await page.goto('/outfit');
+  await page.getByRole('group', { name: 'Wardrobe' }).getByRole('button', { name: 'Men', exact: true }).click();
+  await page.getByRole('group', { name: 'Occasion' }).getByRole('button', { name: /weekend casual/i }).click();
+  await expect(page.getByLabel('Budget', { exact: true })).toHaveValue('200');
+  await page.getByRole('group', { name: 'Tops, dresses & outerwear' }).getByRole('button', { name: 'M', exact: true }).click();
+  await page.getByRole('group', { name: 'Waist (jeans, trousers & skirts)' }).getByRole('button', { name: '32', exact: true }).click();
+  await page.getByRole('group', { name: 'Colors' }).getByRole('button', { name: 'Navy', exact: true }).click();
+  await page.getByRole('button', { name: /style my outfit/i }).click();
 
-  // 3. They buy jeans in their size: the size is part of what goes into the cart.
+  // 3. Three outfits come back with a size and color for every piece; the whole look goes into the cart.
+  await expect(page.getByRole('heading', { name: 'Your outfits' })).toBeVisible();
+  const balanced = page.getByRole('article', { name: /Balanced bundle/ });
+  await expect(balanced).toBeVisible();
+  await expect(balanced.getByText(/Size\s*32/).first()).toBeVisible();
+  await expect(balanced.getByText(/Colors:/)).toBeVisible();
+  await balanced.getByRole('button', { name: /add bundle to cart/i }).click();
+  await expect(page.getByText('Bundle added to your cart')).toBeVisible();
+  await page.goto('/cart');
+  await expect(page.getByText(/32/).first()).toBeVisible();
+
+  // ...and they buy one more piece in their size from a product page.
   await page.goto('/products/levi-s-511-slim-jeans');
   await expect(page.getByRole('button', { name: 'Choose a size' })).toBeDisabled();
   await page.getByRole('button', { name: '32', exact: true }).click();

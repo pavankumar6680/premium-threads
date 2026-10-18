@@ -8,26 +8,26 @@ import type { Bundle, BundleItem } from '../recommendations/api';
 import type { Alternative } from './api';
 
 const item = (overrides: Partial<BundleItem>): BundleItem => ({
-  productId: 1, slug: 'p', sku: 'SKU', name: 'Product', brand: 'Brand', categorySlug: 'cameras', categoryName: 'Cameras',
+  productId: 1, slug: 'p', sku: 'SKU', name: 'Product', brand: 'Brand', categorySlug: 'men-shirts', categoryName: 'Shirts',
   quantity: 1, unitPrice: 100, currentPrice: 100, lineTotal: 100, optional: false, locked: false,
   explanation: 'Explained.', ratingAvg: 4.5, ratingCount: 100, availableQuantity: 10, available: true, variant: null, needsSize: false, ...overrides,
 });
 
-const camera = item({ productId: 1, name: 'Fotonix FX-30', categorySlug: 'cameras', categoryName: 'Cameras', unitPrice: 699, currentPrice: 699, lineTotal: 699 });
-const lens = item({ productId: 2, name: 'Fotonix FX 50mm', categorySlug: 'lenses', categoryName: 'Lenses', unitPrice: 249, currentPrice: 249, lineTotal: 249 });
+const shirt = item({ productId: 1, name: 'Zara Oxford Shirt', categorySlug: 'men-shirts', categoryName: 'Shirts', unitPrice: 699, currentPrice: 699, lineTotal: 699 });
+const chinos = item({ productId: 2, name: 'Zara Chino Trousers', categorySlug: 'men-trousers', categoryName: 'Trousers', unitPrice: 249, currentPrice: 249, lineTotal: 249 });
 
 const draft: Bundle = {
-  id: 'draft-1', goalId: 'goal-1', goalTitle: 'Photography studio', runId: null, sourceBundleId: 'rec-1', tier: 'BALANCED',
+  id: 'draft-1', goalId: 'goal-1', goalTitle: 'Weekend casual (men)', runId: null, sourceBundleId: 'rec-1', tier: 'BALANCED',
   name: 'Balanced bundle', status: 'DRAFT', editable: true, budget: 3000, totalPrice: 948, currentTotal: 948,
-  summary: null, items: [camera, lens],
-  compatibility: { compatible: true, passed: [{ ruleCode: 'LENS_MOUNT', label: 'same lens mount', productIds: [2, 1] }], violations: [] },
+  summary: null, items: [shirt, chinos],
+  compatibility: { compatible: true, passed: [{ ruleCode: 'DRESS_CODE', label: 'a matching dress code', productIds: [2, 1] }], violations: [] },
   purchasable: true, createdAt: '2026-10-17T12:00:00Z', updatedAt: '2026-10-17T12:00:00Z',
 };
 
 const alternatives: Alternative[] = [
-  { productId: 2, slug: 'p2', name: 'Fotonix FX 50mm', brand: 'Fotonix', price: 249, priceDelta: 0, ratingAvg: 4.7, ratingCount: 1900, availableQuantity: 25, inStock: true, compatible: true, issues: [], current: true },
-  { productId: 5, slug: 'p5', name: 'Lenscraft 18-50mm', brand: 'Lenscraft', price: 449, priceDelta: 200, ratingAvg: 4.5, ratingCount: 870, availableQuantity: 14, inStock: true, compatible: true, issues: [], current: false },
-  { productId: 3, slug: 'p3', name: 'Optima OM 35mm', brand: 'Optima', price: 599, priceDelta: 350, ratingAvg: 4.6, ratingCount: 410, availableQuantity: 10, inStock: true, compatible: false, issues: ["The lens does not fit the camera's lens mount."], current: false },
+  { productId: 2, slug: 'p2', name: 'Zara Chino Trousers', brand: 'Zara', price: 249, priceDelta: 0, ratingAvg: 4.7, ratingCount: 1900, availableQuantity: 25, inStock: true, compatible: true, issues: [], current: true },
+  { productId: 5, slug: 'p5', name: 'Mango Pleated Trousers', brand: 'Mango', price: 449, priceDelta: 200, ratingAvg: 4.5, ratingCount: 870, availableQuantity: 14, inStock: true, compatible: true, issues: [], current: false },
+  { productId: 3, slug: 'p3', name: 'Guess Tailored Trousers', brand: 'Guess', price: 599, priceDelta: 350, ratingAvg: 4.6, ratingCount: 410, availableQuantity: 10, inStock: true, compatible: false, issues: ["These trousers are too casual for the shirt."], current: false },
 ];
 
 function workspaceEndpoints(current: { bundle: Bundle }) {
@@ -45,11 +45,11 @@ describe('bundle workspace', () => {
     let replacedWith: unknown;
     workspaceEndpoints(current);
     server.use(
-      http.put(apiPath('/bundles/draft-1/items/lenses'), async ({ request }) => {
+      http.put(apiPath('/bundles/draft-1/items/men-trousers'), async ({ request }) => {
         replacedWith = await request.json();
         current.bundle = {
           ...draft, currentTotal: 1148, totalPrice: 1148,
-          items: [camera, { ...lens, productId: 5, name: 'Lenscraft 18-50mm', currentPrice: 449, lineTotal: 449, explanation: 'Chosen by you.' }],
+          items: [shirt, { ...chinos, productId: 5, name: 'Mango Pleated Trousers', currentPrice: 449, lineTotal: 449, explanation: 'Chosen by you.' }],
         };
         return HttpResponse.json(current.bundle);
       }),
@@ -58,16 +58,16 @@ describe('bundle workspace', () => {
 
     expect(await screen.findByRole('heading', { name: 'Balanced bundle' })).toBeInTheDocument();
     expect(screen.getByText('Everything works together')).toBeInTheDocument();
-    const lensRow = screen.getByText('Fotonix FX 50mm').closest('li')!;
-    await user.click(within(lensRow).getByRole('button', { name: /swap/i }));
+    const trousersRow = screen.getByText('Zara Chino Trousers').closest('li')!;
+    await user.click(within(trousersRow).getByRole('button', { name: /swap/i }));
 
-    const panel = await screen.findByRole('region', { name: 'Alternatives for Lenses' });
+    const panel = await screen.findByRole('region', { name: 'Alternatives for Trousers' });
     expect(await within(panel).findByText('+$200.00')).toBeInTheDocument();
-    expect(within(panel).getByText("The lens does not fit the camera's lens mount.")).toBeInTheDocument();
+    expect(within(panel).getByText("These trousers are too casual for the shirt.")).toBeInTheDocument();
     expect(within(panel).getByText('Current')).toBeInTheDocument();
 
-    const lenscraft = within(panel).getByText('Lenscraft 18-50mm').closest('li')!;
-    await user.click(within(lenscraft).getByRole('button', { name: 'Choose' }));
+    const pleated = within(panel).getByText('Mango Pleated Trousers').closest('li')!;
+    await user.click(within(pleated).getByRole('button', { name: 'Choose' }));
 
     expect(await screen.findByText('$1,148.00')).toBeInTheDocument();
     expect(replacedWith).toEqual({ productId: 5 });
@@ -79,9 +79,9 @@ describe('bundle workspace', () => {
     const calls: string[] = [];
     workspaceEndpoints(current);
     server.use(
-      http.patch(apiPath('/bundles/draft-1/items/cameras'), async ({ request }) => {
+      http.patch(apiPath('/bundles/draft-1/items/men-shirts'), async ({ request }) => {
         calls.push(`lock ${JSON.stringify(await request.json())}`);
-        current.bundle = { ...current.bundle, items: [{ ...camera, locked: true }, lens] };
+        current.bundle = { ...current.bundle, items: [{ ...shirt, locked: true }, chinos] };
         return HttpResponse.json(current.bundle);
       }),
       http.post(apiPath('/bundles/draft-1/reoptimize'), ({ request }) => {
@@ -95,9 +95,9 @@ describe('bundle workspace', () => {
     );
     const { user } = renderApp('/bundles/draft-1');
 
-    const cameraRow = (await screen.findByText('Fotonix FX-30')).closest('li')!;
-    await user.click(within(cameraRow).getByRole('button', { name: 'Lock' }));
-    expect(await within(cameraRow).findByRole('button', { name: 'Unlock' })).toBeInTheDocument();
+    const shirtRow = (await screen.findByText('Zara Oxford Shirt')).closest('li')!;
+    await user.click(within(shirtRow).getByRole('button', { name: 'Lock' }));
+    expect(await within(shirtRow).findByRole('button', { name: 'Unlock' })).toBeInTheDocument();
     expect(screen.getByText(/1 locked item stays/)).toBeInTheDocument();
 
     await user.selectOptions(screen.getByLabelText('Optimize for'), 'PREMIUM');
@@ -115,7 +115,7 @@ describe('bundle workspace', () => {
     server.use(
       http.post(apiPath('/bundles/draft-1/save'), async ({ request }) => {
         savedAs = await request.json();
-        current.bundle = { ...draft, status: 'SAVED', name: 'Studio v1' };
+        current.bundle = { ...draft, status: 'SAVED', name: 'Weekend look v1' };
         return HttpResponse.json(current.bundle);
       }),
     );
@@ -123,12 +123,12 @@ describe('bundle workspace', () => {
 
     const name = await screen.findByLabelText('Bundle name');
     await user.clear(name);
-    await user.type(name, 'Studio v1');
+    await user.type(name, 'Weekend look v1');
     await user.click(screen.getByRole('button', { name: /save bundle/i }));
 
-    expect(await screen.findByRole('heading', { name: 'Studio v1' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Weekend look v1' })).toBeInTheDocument();
     expect(screen.getByText('Saved')).toBeInTheDocument();
-    expect(savedAs).toEqual({ name: 'Studio v1' });
+    expect(savedAs).toEqual({ name: 'Weekend look v1' });
   });
 
   it('shows recommended bundles read-only and customizes them into an editable copy', async () => {

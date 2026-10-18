@@ -6,7 +6,7 @@ import { apiPath, server } from '../../test/server';
 import type { RecommendationRun } from '../recommendations/api';
 
 const run: RecommendationRun = {
-  id: 'run-1', goalId: 'goal-1', goalTitle: 'Professional home office', status: 'OK', preferredTier: 'BALANCED', budget: 1200,
+  id: 'run-1', goalId: 'goal-1', goalTitle: 'Office ready (women)', status: 'OK', preferredTier: 'BALANCED', budget: 1200,
   bundles: [], notes: [], reasons: [], suggestions: [], minimumFeasibleCost: null,
   stats: { algorithmVersion: 'bnb-1.0', nodesExplored: 10, durationMs: 2, complete: true }, createdAt: '2026-10-17T12:00:00Z',
 };

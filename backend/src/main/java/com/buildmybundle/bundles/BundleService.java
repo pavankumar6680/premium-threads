@@ -267,8 +267,8 @@ public class BundleService {
 	}
 
 	/**
-	 * Categories worth adding: those linked by a compatibility rule to something in the bundle (an arm for a
-	 * monitor, a lens for a camera) and the goal's other categories, each with its best compatible products.
+	 * Categories worth adding: those linked by a compatibility rule to something in the bundle (a belt for
+	 * trousers, a watch for an outfit) and the goal's other categories, each with its best compatible products.
 	 */
 	public List<AccessorySuggestion> accessories(UUID id) {
 		Bundle bundle = find(id);

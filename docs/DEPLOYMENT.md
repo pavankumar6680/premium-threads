@@ -93,9 +93,13 @@ per container. `docker compose logs -f backend` follows them.
 **Backups.**
 
 ```bash
-scripts/backup.sh                                    # -> backups/buildmybundle-<timestamp>.sql.gz
-scripts/restore.sh backups/buildmybundle-<timestamp>.sql.gz
+scripts/backup.sh       # -> backups/buildmybundle-<timestamp>.sql.gz and buildmybundle-<timestamp>-media.tar.gz
+scripts/restore.sh backups/buildmybundle-<timestamp>.sql.gz [backups/buildmybundle-<timestamp>-media.tar.gz]
 ```
+
+Product images uploaded in the admin live in the `media` volume (mounted at `/app/media`, served by nginx
+under `/media`). The backup script archives them next to the database dump, and the restore script restores
+them when you pass the archive.
 
 Schedule `backup.sh` (cron or Task Scheduler) and copy the files off the host. On Windows, run the scripts from
 Git Bash or WSL.
@@ -108,6 +112,7 @@ flight for up to 20 seconds. Sessions live in PostgreSQL, so users stay signed i
 (sessions are in the database). Two things are per instance and need attention before scaling out:
 
 - rate-limit buckets are kept in memory: move them to Redis (Bucket4j has a Redis backend) or limit at the proxy;
+- uploaded images are on a local volume: share it between instances or move images to object storage;
 - the AI status cache is per instance, which is harmless.
 
 ## 6. Security checklist
@@ -116,12 +121,16 @@ flight for up to 20 seconds. Sessions live in PostgreSQL, so users stay signed i
 - [ ] HTTPS with `COOKIE_SECURE=true` and the public `CORS_ALLOWED_ORIGINS`.
 - [ ] `SWAGGER_ENABLED=false` in production (the default).
 - [ ] PostgreSQL and the API stay bound to `127.0.0.1` (or are removed from `ports`).
-- [ ] Backups scheduled and a restore tested.
+- [ ] Backups scheduled and a restore tested (database and the media archive).
+- [ ] The demo catalog uses real brand names as mock data. Before any public deployment, replace it with your
+      own catalog (`FLYWAY_LOCATIONS=classpath:db/migration` starts empty), or make sure you have the right
+      to use the brand names.
 
 What the stack already does: non-root containers with read-only file systems where possible and
 `no-new-privileges`; security headers (Content-Security-Policy, X-Frame-Options, Referrer-Policy,
 Permissions-Policy, nosniff); session cookie `HttpOnly` + `SameSite=Lax`; CSRF protection; bcrypt passwords;
-server-side prices and totals; rate limiting; an audit log of admin changes.
+server-side prices and totals; rate limiting; an audit log of admin changes; image uploads checked by file
+content (JPEG, PNG or WebP, 5 MB) and stored under generated names.
 
 ## 7. Continuous integration
 

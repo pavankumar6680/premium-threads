@@ -9,8 +9,8 @@ import { location, renderApp } from '../../test/renderApp';
 import { apiPath, server } from '../../test/server';
 
 const line: CartItem = {
-  productId: 10, variantId: 10, size: 'One size', color: 'Standard', colorHex: null, sku: 'DSK-003', slug: 'ergolift-flexistand-desk-120', name: 'Ergolift FlexiStand Desk 120', brand: 'Ergolift',
-  categorySlug: 'desks', unitPrice: 329, quantity: 1, lineTotal: 329, availableQuantity: 30, available: true,
+  productId: 10, variantId: 10, size: 'One size', color: 'Standard', colorHex: null, sku: 'MNG-003', slug: 'mango-wide-leg-trousers', name: 'Mango Wide Leg Trousers', brand: 'Mango',
+  categorySlug: 'women-trousers', unitPrice: 329, quantity: 1, lineTotal: 329, availableQuantity: 30, available: true,
 };
 
 const cartWith = (quantity: number): Cart => {

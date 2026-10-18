@@ -1,91 +1,82 @@
 # BuildMyBundle
 
-**Goal-based e-commerce.** Instead of searching product by product, customers describe what they want to
-accomplish ("set up a professional home office for $1,200") and BuildMyBundle assembles a complete,
-compatible bundle from the real catalog, optimized for their budget, which they can customize and buy in a
-single checkout.
+**A premium multi-brand fashion marketplace that builds complete outfits.** Shop clothing and accessories
+from 15 brands, or tell BuildMyBundle the occasion, your budget, sizes and favorite colors ("a stylish casual
+outfit for a weekend party under $200, size M") and it puts together a complete look from different brands
+that works together. Every piece comes in your size and in stock, and the whole outfit goes into the cart in one step.
 
-> Status: **complete (phases 1–8)**: store, goal-based shopping, the recommendation engine, the bundle
-> workspace, optional local AI (Ollama), the store admin, end-to-end tests, CI and a production-style Docker
-> deployment. See [Roadmap](#roadmap) and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+> Status: **complete**. The original goal-based store (phases 1–8) was converted into a fashion marketplace
+> in six further phases (F1–F6): catalog and variants, the storefront design, Build Your Outfit, outfit-aware
+> AI, the fashion admin, and tests, docs and deployment. See [Roadmap](#roadmap).
+
+> **Demo data.** Brand names (Nike, Adidas, Puma, Zara, H&M, Levi's, Tommy Hilfiger, Calvin Klein, Ralph Lauren,
+> Lacoste, Uniqlo, Guess, Mango, Under Armour, Michael Kors) are shown as plain text for illustration only.
+> Products, prices and stock are mock data. The store is not affiliated with or endorsed by these brands, and
+> it uses no brand logos or product photos from them. Product pictures are generated garment illustrations in
+> the variant's color. Homepage editorial photos are credited Unsplash images
+> ([CREDITS](frontend/public/images/editorial/CREDITS.md)).
 
 ## Features
 
-- **Optional local AI (Ollama + Spring AI)**:
+- **Storefront**:
+  - **Premium design**: warm ivory, charcoal, coral and violet. Manrope and Playfair Display type, white cards.
+  - **Homepage**: hero; Shop Men / Women / Accessories; featured brands; a trending carousel; new arrivals;
+    shop by style (Casual, Streetwear, Formal, Minimalist, Party Wear); special offers; Build Your Outfit;
+    recommended products. Admins manage the product rails.
+  - **Catalog**:
+    - Departments and categories: Men (T-shirts, shirts, jeans, trousers, jackets, hoodies, sweaters, ethnic
+      wear), Women (dresses, tops, jeans, trousers, skirts, jackets, hoodies, ethnic wear) and Accessories
+      (watches, sunglasses, handbags, backpacks, wallets, belts, jewelry, caps, scarves).
+    - 126 mock products with 1,413 size × color variants.
+    - Filters for brand, size, color, style, price, rating and offers (sale, new, trending). Prefix search.
+  - **Brand pages**: every brand has a page and is a filter.
+  - **Product cards**: picture in the selected color, brand, name, price with the original price, color
+    swatches, sizes, wishlist, Quick View and add to cart.
+  - **Product page**: gallery, color and size selection with per-variant stock, size guide, description,
+    material and care, related products and “complete the look” matching pieces.
+- **Build Your Outfit** (`/outfit`):
+  - **Choices**: who it is for (men / women), the occasion (weekend, office, party, date night, festive,
+    streetwear, travel, workout), the pieces (need / nice to have / skip), budget and priority, letter and
+    waist sizes, up to 6 colors, styles and favorite brands. A sentence can fill in the choices instead.
+  - **Three outfits per request**: Budget, Balanced and Premium, chosen by an exact budget optimizer over
+    every combination of products that are in stock in your size.
+  - **Fashion matching rules (stored as data)**: one wardrobe per outfit, dress codes at most two levels
+    apart, and no two pieces competing for the same spot (no dress plus a top). They apply to every piece.
+  - **Coordinated colors**: your colors come first. Otherwise neutrals, denim and metals form the base, with
+    at most one accent color. Every outfit gets a palette note, and every piece says which size and color was
+    picked and why.
+  - **Workspace**: customize an outfit, swap pieces (with price difference and fit check), change size or
+    color per piece, lock favorites and re-optimize, add or remove accessories, live totals, save it, and
+    add the whole outfit to the cart.
+  - **Show different pieces**: another combination for the same budget that avoids the previous pieces.
+- **Optional local AI (Ollama)**:
   - **Off by default**: everything works without it.
-  - **Reading goals**: when on, the model reads free-text goals alongside the rule-based interpreter. Its answer is validated: only real categories, brands, tags and templates are accepted, and a budget only if the number appears in your text. It can add clarifying questions.
-  - **"Explain with AI"**: writes a plain-language overview of your bundles from the engine’s facts. An answer that mentions a number not in those facts is discarded.
-  - **Never decides**: AI never chooses products, prices or compatibility; the optimizer does.
-- **Bundle workspace**:
-  - **Customize** any recommended bundle into your own draft. Recommended bundles stay read-only.
-  - **Swap** any item: every alternative shows its price difference and whether it is compatible with the
-    rest of your bundle.
-  - **Lock** favorites, then **re-optimize** the unlocked items. Choose the strategy (lowest cost / best
-    value / best quality) and a new budget.
-  - **Add or remove**: add compatible extras (rule-linked accessories and categories from your goal's
-    template), remove nice-to-haves.
-  - **Live totals and compatibility** after every edit. Incompatible bundles can't be bought as a bundle
-    until the conflict is fixed.
-  - **Save** under a name; your saved bundles appear under "My bundles".
-- **Recommendation engine**:
-  - **Three bundles per goal**: Budget, Balanced and Premium, chosen from every compatible combination of
-    in-stock products. Identical tiers are merged, with an explanation rather than padding.
-  - **Compatibility rules stored as data**: 18 rules (monitor ↔ PC ports, monitor ↔ arm load, size and VESA,
-    CPU socket, lens mount, card slot, tripod and mic-arm load, "XLR mic needs an interface",
-    smart-home ecosystems, desk and cardio footprint vs. your room). They run on structured product
-    specs, never AI guesses.
-  - **Exact optimization**: branch and bound with dominance pruning, verified against brute force on 400
-    random problems. Real goals take a few milliseconds.
-  - **Explained picks**: every pick has an explanation built from facts (price rank, rating, purpose,
-    preferred brand, the compatibility checks it passes).
-  - **Honest failures**: if nothing fits, you get the cheapest compatible cost and which item to drop,
-    or the exact conflict.
-  - **Add to cart**: a whole bundle goes into the cart in one step (all or nothing).
-- **Goal-based shopping**:
-  - **Templates**: 7 goal templates (home office, gaming, home gym, photo studio, study space, podcast
-    studio, smart home), each with required and optional categories.
-  - **Describe it in your own words**: a rule-based interpreter turns text into a pre-filled goal. For
-    example, *"home office for $1,200, I need a desk, chair, monitor… I already have a webcam"* becomes
-    the home-office template, a $1,200 budget, the categories you named and "already owned: webcam".
-    It needs no AI service; the local LLM in Phase 6 will sit on top of it.
-  - **4-step wizard**: mark each item need / nice to have / already own / skip, set the budget and approach
-    (Budget / Balanced / Premium), then usage, preferred brands and room size.
-  - **Live budget check**: the cheapest in-stock version of your must-haves is compared with your budget.
-  - **Saved goals**: a goal can't be edited once saved ("Adjust" creates a new one) and has a shareable
-    link, so it works for anonymous visitors too. Signed-in users see "My goals".
-- **Catalog**: 6 departments, 33 categories and 142 seeded products with typed specifications. Prefix
-  full-text search ("monit" finds monitors), and filters by category, brand, price, rating and any
-  specification (e.g. *Inputs: USB-C*), with facet counts. Sorting and pagination are included.
-- **Cart and wishlist**: the cart stores quantities only, so prices and stock are always live. Lines that
-  can no longer be fulfilled are flagged before checkout.
-- **Checkout**:
-  - **Totals**: computed on the server by one pricing policy (free shipping over $100, simulated 8% tax).
-  - **Order snapshot**: names, SKUs, prices and the shipping address are copied onto the order.
-  - **No overselling**: stock is reserved with an atomic conditional `UPDATE`.
-  - **No duplicate orders**: an `Idempotency-Key` makes retries and double clicks safe.
-  - **All-or-nothing**: any failure rolls back the whole transaction.
-- **Orders**: history, details, and cancellation before shipping, which restocks items and refunds the
-  simulated payment exactly once (row-locked).
-- **Addresses**: an address book with one enforced default per user.
-
-- **Store admin** (`/admin`, ADMIN role):
-  - **Dashboard**: revenue with trend, daily revenue chart, orders by status, best sellers, low stock,
-    shopping goals by template, and recommendation-engine health (runs, "no bundle possible" share,
-    p95 time).
-  - **Products**: create and edit products and their specifications (validated against the category's
-    attribute definitions), adjust stock inline, take products off sale. Concurrent edits are detected
-    (optimistic locking).
-  - **Orders**: ship, mark delivered, or cancel with restock and refund.
-  - **Categories**: add categories and specifications without code changes.
-  - **Compatibility rules**: create and edit rules, and preview how many product pairs a rule would
-    block before saving it.
-  - **Goal templates**: items, usage options and interpreter keywords.
-  - **Activity log**: every admin change, who made it and when.
-- **Rate limiting**: per user (or per IP when anonymous) with Bucket4j. Sign-in, AI calls, recommendation
-  runs and checkout have tighter limits; a limited request gets `429` with `Retry-After`.
-
-All brands and products are fictional. Product photos are not included, so each category has an
-illustrated tile; real images can be attached through `product_images`.
+  - **Reading requests**: the model's reading of free text is validated against the catalog. Wardrobe, sizes
+    and colors always come from the deterministic reading of your own words, and a budget is accepted only
+    if the number appears in your text.
+  - **“Explain with AI”**: a stylist-style overview of why the pieces go together. It uses only the run's
+    facts. Answers that name a brand or number that is not in the outfit are discarded.
+  - **Never decides**: AI never invents brands, products, prices, sizes or availability. The optimizer and
+    the catalog decide.
+- **Cart, checkout and orders**:
+  - **Cart**: lines are per variant (size and color), with live prices and stock.
+  - **Checkout**: server-side totals, no overselling (atomic stock reservation per variant), idempotent order
+    creation and all-or-nothing transactions.
+  - **Orders**: snapshots of names, SKUs, sizes, colors and prices. Cancellation before shipping restocks
+    the exact variant and refunds the simulated payment.
+- **Store admin** (`/admin`, ADMIN role), in the same design system:
+  - **Dashboard**: revenue and trend, orders, best sellers, low stock, outfits by occasion, engine health.
+  - **Products**:
+    - Brand, wardrobe, price and original price (discounts), featured / new / trending flags, material,
+      care, styles and occasions.
+    - A size × color variant editor with per-variant stock.
+    - Image upload (JPEG, PNG or WebP up to 5 MB, checked by content). Optimistic locking on edits.
+  - **Brands**: add, rename, feature on the homepage or retire, without code changes.
+  - **Categories**, **styles & occasions**, and **homepage** rails (built-in and extra collections).
+  - **Outfit rules**: create rules for specific categories or “any piece”, with a preview of how many product
+    pairs a rule would block.
+  - **Outfit templates**, **orders** (ship, deliver, cancel with refund) and the **activity log**.
+- **Rate limiting** per user or IP (Bucket4j), with tighter limits for sign-in, AI, recommendations and checkout.
 
 ## Tech stack
 
@@ -122,15 +113,16 @@ npm install
 npm run dev
 ```
 
-The `dev` profile creates an administrator: **admin@buildmybundle.local / Admin12345**. The demo catalog
-is loaded by Flyway on first start. To deploy an empty store, set
+The `dev` profile creates an administrator: **admin@buildmybundle.local / Admin12345**. The demo fashion
+catalog is loaded by Flyway on first start. Uploaded product images are stored in `backend/.data/media`
+(`MEDIA_DIR`). To deploy an empty store, set
 `FLYWAY_LOCATIONS=classpath:db/migration`.
 
 ### Optional: turn on local AI
 
 Install [Ollama](https://ollama.com) and run `ollama pull llama3.2:3b`, then start the backend with
-`AI_ENABLED=true` (PowerShell: `$env:AI_ENABLED="true"`). The goal page then shows **AI assist on**, and the
-bundles page offers **Explain with AI**. Use `AI_MODEL` to pick another model and `OLLAMA_BASE_URL` for another host.
+`AI_ENABLED=true` (PowerShell: `$env:AI_ENABLED="true"`). The outfit builder then shows **AI assist on**, and
+the results page offers **Explain with AI**. Use `AI_MODEL` to pick another model and `OLLAMA_BASE_URL` for another host.
 
 ### Option B: local development with Docker PostgreSQL
 
@@ -172,7 +164,7 @@ cookie value in an `X-XSRF-TOKEN` header on every `POST/PUT/PATCH/DELETE`.
 ```bash
 cd backend && ./mvnw test      # unit + integration tests on a real (embedded) PostgreSQL + module boundary check
 cd frontend && npm test        # component and API-client tests (Vitest + MSW)
-cd frontend && npm run e2e     # end-to-end purchase + fulfilment in a real browser (Playwright, installed Edge)
+cd frontend && npm run e2e     # build an outfit in your size, buy it, ship it (Playwright, installed Edge)
 cd frontend && npm run build   # type-check + production build
 ```
 
@@ -187,32 +179,32 @@ buildmybundle/
 │   ├── src/main/java/com/buildmybundle/
 │   │   ├── shared/               error model (problem+json), paging, OpenAPI config
 │   │   ├── auth/                 users, roles, session security, /auth endpoints
-│   │   ├── catalog/              categories, products, search + facets (SQL read model)
-│   │   ├── inventory/            stock levels, atomic reservation
+│   │   ├── catalog/              brands, categories, products, variants, search + facets, admin, media
+│   │   ├── inventory/            per-variant stock, atomic reservation
 │   │   ├── pricing/              shipping / tax / totals policy
 │   │   ├── account/              address book
 │   │   ├── cart/  wishlist/      shopping cart, saved products
 │   │   ├── payments/             simulated payment provider
-│   │   ├── goals/                goal templates, rule-based goal interpreter, shopping goals
-│   │   ├── compatibility/        compatibility rules (data) and the rule checker
+│   │   ├── goals/                outfit templates, request interpreter, goals with the wearer's fit
+│   │   ├── compatibility/        outfit rules (data) and the rule checker
 │   │   ├── recommendation/       branch-and-bound optimizer, tiers, explanations, runs
-│   │   ├── bundles/              recommended and customer bundles, workspace operations
+│   │   ├── bundles/              outfits (bundles), size and color choice, workspace operations
 │   │   ├── ai/                   optional language model (Spring AI + Ollama) with timeouts and status
 │   │   ├── orders/               checkout, order history, cancellation, fulfilment
 │   │   └── analytics/            admin dashboard reporting (read-only)
 │   ├── src/main/resources/db/migration/   Flyway schema migrations
-│   ├── src/main/resources/db/seed/        demo catalog (optional in deployments)
+│   ├── src/main/resources/db/seed/        demo fashion catalog, outfit templates and rules (optional)
 │   └── src/test/java/…           integration tests, LocalDevApplication (embedded Postgres)
 ├── frontend/                     React SPA
 │   └── src/
 │       ├── app/                  routes and layout
 │       ├── components/ui/        design-system primitives
-│       ├── features/             auth, catalog, cart, checkout, orders, wishlist, account, goals, recommendations, bundles, ai, admin
+│       ├── features/             catalog, outfit, cart, checkout, orders, wishlist, account, goals, recommendations, bundles, ai, admin
 │       ├── lib/                  API client (CSRF + problem details), query client
 │       └── test/                 MSW server and render helpers
 │   └── e2e/                      Playwright end-to-end tests
 ├── docs/                         ARCHITECTURE.md, DEPLOYMENT.md
-├── scripts/                      database backup and restore
+├── scripts/                      backup and restore (database and uploaded images)
 ├── .github/workflows/ci.yml      tests, E2E and image builds
 └── docker-compose.yml            production-style stack
 ```
@@ -229,3 +221,9 @@ buildmybundle/
 | 6. AI features | Ollama via Spring AI with deterministic fallback | ✅ Done |
 | 7. Admin and testing | Admin dashboard, security and E2E tests | ✅ Done |
 | 8. Deployment | Production configuration, CI, backups and final docs | ✅ Done |
+| F1. Fashion catalog | 15 brands, fashion categories, size × color variants with per-variant stock; users and orders kept | ✅ Done |
+| F2. Storefront design | Premium theme, homepage, product cards, Quick View, product and brand pages | ✅ Done |
+| F3. Build Your Outfit | Fit (wardrobe, sizes, colors), outfit rules, size and color per piece, outfit to cart | ✅ Done |
+| F4. Outfit AI | Outfit-aware prompts, brand grounding, “show different pieces” | ✅ Done |
+| F5. Fashion admin | Brands, variants, images, merchandising, styles and occasions, homepage rails, rules | ✅ Done |
+| F6. Finish | Fashion tests and E2E, docs, Docker | ✅ Done |

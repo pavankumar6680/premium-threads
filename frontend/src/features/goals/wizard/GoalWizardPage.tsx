@@ -407,7 +407,7 @@ function PreferencesStep({ control, register, template, byslug, errors }: StepPr
       )}
 
       <div className="grid gap-4">
-        <TextField label="Goal name" placeholder="e.g. My home office" error={errors.title?.message} {...register('title')} />
+        <TextField label="Goal name" placeholder="e.g. Weekend wedding guest look" error={errors.title?.message} {...register('title')} />
         <div>
           <label htmlFor="notes" className="mb-1.5 block text-sm font-medium text-slate-700">Anything else? <span className="font-normal text-slate-500">(optional)</span></label>
           <textarea id="notes" rows={3} maxLength={500} className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"

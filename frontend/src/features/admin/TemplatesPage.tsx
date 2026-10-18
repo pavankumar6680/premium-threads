@@ -131,7 +131,7 @@ function TemplateEditor({ template, categories, onDone }: { template: AdminTempl
         {save.error && <Alert tone="error">{errorMessage(save.error)}</Alert>}
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField label="Title" value={form.title} onChange={(e) => set('title', e.target.value)} error={errors.title} />
-          <TextField label="Slug" value={form.slug} onChange={(e) => set('slug', e.target.value)} error={errors.slug} hint="Used in links, e.g. home-office" />
+          <TextField label="Slug" value={form.slug} onChange={(e) => set('slug', e.target.value)} error={errors.slug} hint="Used in links; end with -men or -women for a wardrobe, e.g. office-women" />
           <TextField label="Tagline" className="sm:col-span-2" value={form.tagline} onChange={(e) => set('tagline', e.target.value)} error={errors.tagline} />
           <TextAreaField label="Description" className="sm:col-span-2" rows={3} value={form.description} onChange={(e) => set('description', e.target.value)} />
           <TextField label="Default budget (USD)" type="number" min={1} value={form.defaultBudget} onChange={(e) => set('defaultBudget', e.target.value)} error={errors.defaultBudget} />

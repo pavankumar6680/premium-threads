@@ -33,7 +33,7 @@ import tools.jackson.databind.json.JsonMapper;
  * <li><b>template</b>: only when the rules found none (e.g. "competitive shooters" → gaming setup);</li>
  * <li><b>budget</b>: only when the rules found none and the number literally appears in the text;</li>
  * <li><b>owned items</b>: the model may mark a category as already owned only if the text names it in a
- * sentence that is not a request ("I need a desk, a chair…" is never read as owning them);</li>
+ * sentence that is not a request ("I need a shirt, jeans…" is never read as owning them);</li>
  * <li><b>usage tags</b>: only those offered by the chosen template;</li>
  * <li><b>questions</b>: at most one, and only when something essential (budget or items) is missing.</li>
  * </ul>
@@ -132,7 +132,7 @@ public final class AiGoalMerger {
 			questions.add("What is your total budget?");
 		}
 		if (itemList.stream().noneMatch(i -> i.kind() != RequirementKind.OWNED)) {
-			questions.add("Which products do you need? For example: a desk, a chair and a monitor.");
+			questions.add("Which pieces do you need? For example: a shirt, jeans and a watch.");
 		}
 		if (!questions.isEmpty()) {
 			nullSafe(ai.clarifyingQuestions()).stream()

@@ -49,7 +49,7 @@ const summary: AnalyticsSummary = {
   ordersByStatus: { PAID: 5, SHIPPED: 10, DELIVERED: 26, CANCELLED: 2 },
   topProducts: [{ productId: 31, name: 'Oxford Shirt', sku: 'MON-001', units: 14, revenue: 3486 }],
   inventory: { activeProducts: 140, lowStock: 6, outOfStock: 1, lowest: [{ productId: 31, name: 'Oxford Shirt', sku: 'MON-001', stock: 3 }] },
-  goals: { created: 88, describedInOwnWords: 30, averageBudget: 1350, byTemplate: [{ title: 'Home office', goals: 40 }] },
+  goals: { created: 88, describedInOwnWords: 30, averageBudget: 1350, byTemplate: [{ title: 'Office ready (women)', goals: 40 }] },
   recommendations: {
     runs: 120, infeasibleRuns: 6, infeasibleShare: 0.05, averageDurationMs: 35, p95DurationMs: 140, averageNodes: 5400,
     aiOverviews: 4, savedBundles: 18, customizedBundles: 9,

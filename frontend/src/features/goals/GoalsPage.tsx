@@ -9,7 +9,7 @@ import { useAnalyzeGoal, useGoalTemplates } from './api';
 import { TemplateCard } from './TemplateCard';
 
 const EXAMPLE =
-  'I want to set up a professional work-from-home office with a budget of $1,200. I need a desk, ergonomic chair, monitor, keyboard, mouse, and lighting.';
+  'A smart office outfit for her under $250: trousers, a blouse and a handbag. Size S, I like navy and white.';
 
 export function GoalsPage() {
   const navigate = useNavigate();
@@ -27,8 +27,8 @@ export function GoalsPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10">
       <div className="max-w-3xl">
-        <p className="text-sm font-semibold text-brand-700">Build a bundle</p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">What do you want to accomplish?</h1>
+        <p className="text-sm font-semibold text-brand-700">Outfit planner</p>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">What are you dressing for?</h1>
         <p className="mt-2 text-slate-600">Describe it in your own words, or start from one of the goals below.</p>
       </div>
 
@@ -51,7 +51,7 @@ export function GoalsPage() {
             <AiStatusPill />
           </div>
           <Button type="submit" isLoading={analyze.isPending} disabled={!text.trim()}>
-            <Sparkles className="size-4" aria-hidden="true" /> Plan my bundle
+            <Sparkles className="size-4" aria-hidden="true" /> Plan my outfit
           </Button>
         </div>
         {analyze.isError && (
@@ -62,7 +62,7 @@ export function GoalsPage() {
       </form>
 
       <section className="mt-12" aria-labelledby="popular-goals">
-        <h2 id="popular-goals" className="text-xl font-bold">Popular goals</h2>
+        <h2 id="popular-goals" className="text-xl font-bold">Popular occasions</h2>
         {templates.isError && <div className="mt-4"><Alert tone="error">{templates.error.message}</Alert></div>}
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {templates.data?.map((t) => (
@@ -74,7 +74,7 @@ export function GoalsPage() {
           >
             <PencilRuler className="size-6 text-slate-500" aria-hidden="true" />
             <h3 className="mt-3 text-lg font-semibold">Start from scratch</h3>
-            <p className="mt-1 text-sm text-slate-600">Pick any categories and build a custom goal.</p>
+            <p className="mt-1 text-sm text-slate-600">Pick any pieces and build a custom outfit.</p>
           </Link>
         </div>
       </section>

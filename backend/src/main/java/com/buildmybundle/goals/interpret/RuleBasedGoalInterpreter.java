@@ -29,12 +29,12 @@ import com.buildmybundle.goals.interpret.InterpreterVocabulary.TemplateTerms;
  * <p>
  * Rules, in order:
  * <ol>
- * <li>Template: the one whose keywords occur most often ("work from home" → home office).</li>
+ * <li>Template: the one whose keywords occur most often ("weekend brunch" → weekend casual).</li>
  * <li>Budget: "$1,200", "$1.5k", "budget of 900", "under 2k", "800 dollars". A bare "4k" is ignored so a
- * "4k monitor" is not mistaken for a budget.</li>
- * <li>Categories: phrases such as "desk", "ergonomic chair", "mouse". Ambiguous words ("lighting") are
+ * "4k" in a product name is not mistaken for a budget.</li>
+ * <li>Categories: phrases such as "shirt", "jeans", "watch". Ambiguous words ("jacket") are
  * resolved in favour of the matched template's categories.</li>
- * <li>Owned items: categories named in a clause like "I already have a monitor and keyboard".</li>
+ * <li>Owned items: categories named in a clause like "I already have jeans and sneakers".</li>
  * <li>Quality, usage tags and brands from fixed phrase lists and the catalog's brand names.</li>
  * <li>Fit: wardrobe ("for him", "women's"), sizes ("size M", "medium", "waist 32", "32 waist") and the
  * catalog's color names ("navy and olive"). Nothing is assumed when the text does not say it.</li>
@@ -110,7 +110,7 @@ public final class RuleBasedGoalInterpreter {
 			clarifications.add("What is your total budget?");
 		}
 		if (items.stream().noneMatch(i -> i.kind() != RequirementKind.OWNED)) {
-			clarifications.add("Which products do you need? For example: a desk, a chair and a monitor.");
+			clarifications.add("Which pieces do you need? For example: a shirt, jeans and a watch.");
 		}
 
 		return new GoalAnalysis(SOURCE, template.map(TemplateTerms::slug).orElse(null),
@@ -278,7 +278,7 @@ public final class RuleBasedGoalInterpreter {
 	/** Category slug → NEEDED (REQUIRED) or OWNED, in order of first mention. */
 	private static Map<String, RequirementKind> mentionedCategories(String text, InterpreterVocabulary vocabulary,
 			Set<String> templateCategories, List<String> matched) {
-		// phrase → candidate categories, longest phrases first so "desk lamp" wins over "desk"
+		// phrase → candidate categories, longest phrases first so "denim jacket" wins over "jacket"
 		Map<String, List<String>> phraseCandidates = new LinkedHashMap<>();
 		vocabulary.categoryPhrases().forEach((slug, phrases) -> phrases
 			.forEach(p -> phraseCandidates.computeIfAbsent(normalize(p), k -> new ArrayList<>()).add(slug)));

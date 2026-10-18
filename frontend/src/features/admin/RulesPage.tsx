@@ -20,8 +20,8 @@ import {
 import { Badge, Card, Checkbox, errorMessage, fieldErrorsOf, PageHeader, SelectField, TableWrap, td, th, Toggle } from './components/AdminUi';
 
 const OPERATORS: Record<Operator, { label: string; help: string; pairwise: boolean; space: boolean }> = {
-  EQUALS: { label: 'Values match', help: 'A value of the source equals a value of the target (lens mount = camera mount).', pairwise: true, space: false },
-  LIST_CONTAINS: { label: 'Target supports all', help: 'The target list contains every source value (card format in the camera’s slots).', pairwise: true, space: false },
+  EQUALS: { label: 'Values match', help: 'A value of the source equals a value of the target (same season, same collection).', pairwise: true, space: false },
+  LIST_CONTAINS: { label: 'Target supports all', help: 'The target list contains every source value (every style of the top is also a style of the bottom).', pairwise: true, space: false },
   LIST_INTERSECTS: { label: 'Share a value', help: 'Source and target lists share at least one value (both made for the same wardrobe).', pairwise: true, space: false },
   LIST_DISJOINT: { label: 'No shared value', help: 'Source and target lists have no value in common (two pieces never cover the same part of an outfit).', pairwise: true, space: false },
   LTE: { label: 'At most', help: 'Source number ≤ target number.', pairwise: true, space: false },

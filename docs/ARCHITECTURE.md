@@ -1,8 +1,14 @@
 # BuildMyBundle — Architecture
 
-BuildMyBundle is a goal-based e-commerce platform: a customer describes an outcome ("a professional home
-office for $1,200"), and the system assembles a complete, compatible, budget-optimized bundle from the real
-catalog, which the customer can then customize and buy in one checkout.
+BuildMyBundle is a multi-brand fashion marketplace with goal-based shopping. A customer describes an occasion
+("a stylish casual outfit for a weekend party under $200, size M, in navy"). The system assembles a complete,
+coordinated, budget-optimized outfit from the real catalog: every piece is in stock in the wearer's size, and
+pieces are mixed across brands. The customer can customize the outfit and buy it in one checkout.
+
+The platform was first built as a general goal-based store (phases 1–8: catalog, goals, the optimizer, the
+bundle workspace, AI, admin, deployment). It was then converted to fashion without a rewrite (F1–F6, see
+§14). The engine, goals, bundles and compatibility modules are domain-neutral; fashion lives in data (catalog,
+variants, templates, rules) and in a small amount of outfit-specific logic (`bundles.OutfitFit`).
 
 ## 1. System overview
 
@@ -50,7 +56,7 @@ public API (e.g. `auth.AuthenticatedUser`); sub-packages (`domain`, `service`, `
 | Engine: 3 tiers, budget optimization, compatibility | Playwright E2E | |
 | Bundle workspace: replace / lock / remove / recalc / save | | |
 | Admin: products, attributes, inventory, rules, templates, orders | | |
-| Seed catalog (~150 products across 7 goals) | | |
+| Seed catalog: 126 fashion products, 1,413 variants, 15 brands, 16 outfit templates (F1) | | |
 
 ## 3. Data model
 
@@ -59,38 +65,48 @@ users(id, email UQ, password_hash, full_name, enabled, created_at, updated_at, v
 roles(id, name UQ)                user_roles(user_id FK, role_id FK, PK both)
 addresses(id, user_id FK, line1, line2, city, state, postal_code, country, is_default)
 
-categories(id, parent_id FK NULL, slug UQ, name)
-products(id, category_id FK, sku UQ, name, brand, description, price NUMERIC(12,2),
-         rating_avg, rating_count, quality_tier, status, seller_id NULL, version)
-product_images(id, product_id FK, url, sort_order)
+brands(id, slug UQ, name UQ, description, featured, active, sort_order)
+categories(id, parent_id FK NULL, slug UQ, name, active, outfit_slot[TOP|BOTTOM|FULL|LAYER|ACCESSORY],
+           size_scale[ALPHA|WAIST|ONE_SIZE])
+products(id, category_id FK, brand_id FK, sku UQ, name, brand (denormalized name), description,
+         price NUMERIC(12,2), compare_at_price NULL, gender[MEN|WOMEN|UNISEX], featured, new_arrival,
+         trending, material, care, rating_avg, rating_count, quality_tier, status, seller_id NULL, version)
+product_variants(id, product_id FK, sku UQ, size, color, color_hex, color_family[NEUTRAL|ACCENT|DENIM|METAL],
+                 active, sort_order, UQ(product_id, size, color))
+variant_stock(variant_id PK/FK, quantity_on_hand CHECK >= 0, version)   -- replaced inventory(product_id)
+product_images(id, product_id FK, url, alt_text, color NULL, sort_order, stored_name NULL)
+styles / occasions(id, slug UQ, name, description, sort_order, active)
+product_styles / product_occasions(product_id, style_id | occasion_id)
+home_sections(id, slug UQ, eyebrow, title, query, position, active)   -- homepage product rails
 attribute_definitions(id, category_id FK, key, data_type[TEXT|NUMBER|BOOL|LIST], unit, UQ(category_id,key))
 product_attributes(id, product_id FK, attribute_id FK, value_text, value_number, value_bool)
-inventory(product_id PK/FK, quantity_on_hand CHECK >= 0, version)
-compatibility_rules(id, source_category_id, target_category_id, operator, source_attr_key,
+compatibility_rules(id, source_category_id NULL (= any), target_category_id NULL, operator, source_attr_key,
                     target_attr_key, severity[BLOCK|WARN], message, active)
 product_tags(product_id, tag)
 
 goal_templates(id, slug UQ, title, description, image_url, default_budget, active)
 goal_template_items(id, template_id FK, category_id FK, required, weight, min_qty, max_qty)
 shopping_goals(id, user_id NULL, template_id NULL, raw_text, budget, constraints JSONB,
-               preferred_brands TEXT[], owned_category_ids BIGINT[], usage_tags TEXT[], created_at)
+               preferred_brands TEXT[], owned_category_ids BIGINT[], usage_tags TEXT[], created_at,
+               gender NULL, size_alpha NULL, size_waist NULL)        goal_preferred_colors(goal_id, color)
 goal_requirements(id, goal_id FK, category_id FK, required, weight, locked_product_id NULL)
 recommendation_runs(id, goal_id FK, algorithm_version, input_snapshot JSONB, status,
                     infeasible_reason, min_feasible_cost, created_at)
 bundles(id, run_id NULL, user_id NULL, goal_id FK, tier[BUDGET|BALANCED|PREMIUM|CUSTOM], name,
         status[RECOMMENDED|CUSTOMIZED|SAVED], total_price, score, version)
-bundle_items(id, bundle_id FK, product_id FK, category_id, quantity, locked, optional, explanation)
+bundle_items(id, bundle_id FK, product_id FK, variant_id NULL, category_id, quantity, locked, optional, explanation)
 
-carts(id, user_id UQ)             cart_items(id, cart_id FK, product_id FK, qty CHECK > 0, bundle_id NULL)
+carts(id, user_id UQ)             cart_items(id, cart_id FK, product_id FK, variant_id FK, qty CHECK > 0, bundle_id NULL)
 wishlist_items(user_id, product_id, created_at, PK both)
 orders(id, user_id FK, status, subtotal, shipping, tax, total, shipping_address JSONB,
        idempotency_key, created_at, UQ(user_id, idempotency_key))
-order_items(id, order_id FK, product_id FK, product_name, sku, unit_price, qty, line_total)  -- price snapshot
+order_items(id, order_id FK, product_id FK, variant_id, product_name, sku, size, color, unit_price, qty,
+            line_total)                                              -- snapshot
 payments(id, order_id UQ FK, amount, status, simulated_ref, created_at)
 ```
 
 - **Typed EAV** for product attributes keeps the schema normalized and gives the rules engine typed values.
-- **Oversell-proof checkout**: `UPDATE inventory SET quantity_on_hand = quantity_on_hand - :q WHERE product_id = :id AND quantity_on_hand >= :q`; zero rows updated rolls back the whole order transaction.
+- **Oversell-proof checkout**: `UPDATE variant_stock SET quantity_on_hand = quantity_on_hand - :q WHERE variant_id = :id AND quantity_on_hand >= :q`; zero rows updated rolls back the whole order transaction.
 - **Idempotent order creation**: `Idempotency-Key` header + unique `(user_id, idempotency_key)`.
 
 ## 4. API (`/api/v1`)
@@ -98,12 +114,12 @@ payments(id, order_id UQ FK, amount, status, simulated_ref, created_at)
 | Area | Endpoints |
 |---|---|
 | Auth ✅ | `GET /auth/csrf`, `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` |
-| Catalog ✅ | `GET /categories`, `GET /products?q&category&brand&minPrice&maxPrice&minRating&tag&attr.{key}=v&sort&page&size`, `GET /products/facets?q&category`, `GET /products/{slug}` |
+| Catalog ✅ | `GET /categories`, `GET /products?q&category&department&brand&gender&sizes&colors&style&occasion&flag=sale|new|trending|featured&minPrice&maxPrice&minRating&tag&attr.{key}=v&sort&page&size`, `GET /products/facets`, `GET /products/{slug}`, `GET /brands`, `GET /brands/{slug}`, `GET /vocabulary` (styles, occasions, colors, sizes), `GET /home/sections` |
 | Goals ✅ | `GET /goal-templates`, `GET /goal-templates/{slug}`, `GET /goal-categories`, `POST /goals/analyze`, `POST /goals`, `GET /goals/{id}`, `GET /me/goals`, `GET /ai/status`, `POST /recommendations/{runId}/explanation` |
 | Recommendations ✅ | `POST /goals/{id}/recommendations`, `GET /goals/{id}/recommendations/latest`, `GET /recommendations/{runId}`, `GET /bundles/{id}`, `POST /cart/bundles/{id}` |
 | Bundle workspace ✅ | `GET /bundles/{id}`, `POST /bundles/{id}/customize`, `GET /bundles/{id}/alternatives?category`, `GET /bundles/{id}/accessories`, `PUT/PATCH/DELETE /bundles/{id}/items/{category}`, `POST /bundles/{id}/items`, `PUT /bundles/{id}/budget`, `POST /bundles/{id}/reoptimize?strategy`, `POST /bundles/{id}/save`, `DELETE /bundles/{id}`, `GET /me/bundles` |
-| Shopping ✅ | `GET /cart`, `POST /cart/items`, `PUT/DELETE /cart/items/{productId}`, `DELETE /cart`, `GET /wishlist`, `PUT/DELETE /wishlist/{productId}`, `GET/POST /me/addresses`, `PUT/DELETE /me/addresses/{id}`, `POST /me/addresses/{id}/default`, `POST /checkout` (Idempotency-Key), `GET /orders`, `GET /orders/{id}`, `POST /orders/{id}/cancel`. Phase 5 adds `POST /cart/bundles/{id}` |
-| Admin | `/admin/products`, `/admin/categories`, `/admin/attributes`, `/admin/inventory`, `/admin/compatibility-rules`, `/admin/goal-templates`, `/admin/orders`, `/admin/analytics/summary` |
+| Shopping ✅ | `GET /cart`, `POST /cart/items`, `PUT/DELETE /cart/items/{variantId}`, `DELETE /cart`, `GET /wishlist`, `PUT/DELETE /wishlist/{productId}`, `GET/POST /me/addresses`, `PUT/DELETE /me/addresses/{id}`, `POST /me/addresses/{id}/default`, `POST /checkout` (Idempotency-Key), `GET /orders`, `GET /orders/{id}`, `POST /orders/{id}/cancel`. Phase 5 adds `POST /cart/bundles/{id}` |
+| Admin | `/admin/products` (+ `/{id}/images`, multipart upload), `/admin/variants/{id}/stock`, `/admin/brands`, `/admin/categories`, `/admin/styles`, `/admin/occasions`, `/admin/home-sections`, `/admin/compatibility-rules` (+ `/preview`), `/admin/goal-templates`, `/admin/orders`, `/admin/analytics/summary`, `/admin/audit-log` |
 
 Pagination shape: `{content, page, size, totalElements}`. `/admin/**` requires `ROLE_ADMIN`.
 Every bundle mutation returns the fully recalculated bundle (totals, budget usage, compatibility report).
@@ -136,10 +152,11 @@ K ≤ 12 and pruning, typical runs visit a few thousand nodes; a node cap and ti
 A DP over budget (`O(C·K·B)`) solves the unconstrained case, but pairwise compatibility breaks its optimal
 substructure, so branch and bound is the general solver.
 
-**Compatibility rules** are data (`compatibility_rules`), evaluated by one strategy per operator:
-`EQUALS` (CPU socket = motherboard socket), `LIST_INTERSECTS` (monitor inputs ∩ PC outputs ≠ ∅),
-`NUMBER_LTE` (monitor weight ≤ arm max load), `LIST_CONTAINS` (arm VESA patterns ∋ monitor VESA),
-`LTE_USER_CONSTRAINT` (desk width ≤ available space). Checkout re-validates bundles sold as compatible.
+**Compatibility rules** are data (`compatibility_rules`), evaluated by one strategy per operator: `EQUALS`,
+`LIST_CONTAINS`, `LIST_INTERSECTS` (same wardrobe), `LIST_DISJOINT` (no two pieces covering the same part of
+an outfit), `LTE`, `MAX_DIFFERENCE` (dress codes at most 2 apart), the space operators and
+`REQUIRES_CATEGORY_UNLESS`. A rule category of NULL means *any piece*; such universal rules are checked once
+per pair of pieces. Checkout re-validates bundles sold as compatible.
 
 ## 6. Security
 
@@ -324,3 +341,64 @@ Complexity is `O(K^C)` in the worst case; on the seed catalog, real goals explor
 - `ModularityTest` verifies module boundaries.
 - Frontend: Vitest + Testing Library + MSW, rendering the real route tree.
 - End-to-end: Playwright against the real stack (`npm run e2e`); it starts the backend and Vite if needed.
+
+## 14. Fashion marketplace (F1–F6)
+
+**Migration without data loss (F1).** `V16__fashion_model.sql` adds brands, variants and per-variant stock.
+It backfills `variant_stock` from the old `inventory` before dropping that table, and adds `variant_id` to
+cart, order and bundle items. `V17` (generated by `tools/gen_fashion_seed.py`, deterministic) retires the old
+catalog safely: rules are removed, templates deactivated, and products that no order references are deleted.
+Referenced products are archived, so every existing order keeps its snapshot. Users and orders are never
+deleted.
+
+**Variants.** A product has size × color variants; stock, cart lines, order lines and reservations are per
+variant. A product without variants gets a single "One size" option. Variants are never deleted (orders
+reference them), only deactivated. The product card exposes colors and sizes; the product page has
+per-variant stock and a size guide.
+
+**Outfit fit (F3).** A goal carries the wearer's `Fit`: wardrobe, letter size, waist size and up to 6
+preferred colors. The catalog derives facts for every product:
+- `wardrobe`: MEN and/or WOMEN.
+- `covers`: upper / lower / outer, from the category's outfit slot.
+- `dress_code`: formality, for clothing only.
+- `stock_options`: "size|color" pairs in stock.
+
+The engine and the rules use these facts like any other attributes. The recommendation pipeline:
+1. Keeps only candidates the wearer can buy: right wardrobe, in stock in their size for the category's size
+   scale.
+2. Tags products available in a preferred color, so the relevance score favors them.
+3. After optimization, `OutfitFit.chooseVariants` colors the outfit in slot order (full looks and tops,
+   bottoms, layers, accessories). The shopper's colors come first; otherwise neutrals, denim and metals form
+   the base, with at most one accent color. When the size is unknown and a product has several, the size is
+   left for the shopper and the outfit cannot be checked out until each piece has one.
+
+Every piece's explanation states the chosen size and color, and the summary ends with a palette note.
+
+**Outfit rules (data, `V20`).** Three rules apply to every pair of pieces:
+- `SAME_WARDROBE` (LIST_INTERSECTS on wardrobe, block).
+- `DRESS_CODE` (MAX_DIFFERENCE 2 on dress_code, block).
+- `NO_DOUBLE_PIECES` (LIST_DISJOINT on covers, warn).
+
+Admins can add rules for specific categories or for "any piece", and preview their effect.
+
+**AI (F4), always optional.**
+- **Reading requests**: wardrobe, sizes and colors come only from the deterministic reading of the shopper's
+  own words. Colors must be catalog color names. The model may pick a template or style tags from the
+  catalog's lists.
+- **Overview**: the model sees each piece's brand, size, color and price plus the palette note. Its answer
+  is rejected if it mentions a number or a catalog brand that is not in those facts.
+- **Alternatives**: "Show different pieces" is deterministic: the optimizer runs again for the same goal
+  and budget without the previous run's pieces, except where a category has no alternative.
+
+**Admin (F5).**
+- Brands, styles, occasions and homepage rails are data. Homepage rails are catalog filters, restricted to a
+  whitelist of query keys.
+- Product images are uploaded to local disk (`MEDIA_DIR`, a Docker volume) and served under `/media` with
+  long-lived caching.
+- An upload is accepted only if its content has a JPEG, PNG or WebP signature (at most 5 MB). It is stored
+  under a generated name, never the uploaded file name.
+
+**Storefront (F2).**
+- Tailwind v4 design tokens: `brand` (coral), `violet` and warm neutrals; Manrope and Playfair Display.
+- Product pictures are SVG garment illustrations drawn in the variant's color (no product photography or
+  logos). Editorial photos are credited Unsplash images.

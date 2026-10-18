@@ -4,19 +4,11 @@ import { formatMoney } from '../../lib/format';
 import { categoryVisual } from '../catalog/categoryVisuals';
 import type { TemplateSummary } from './api';
 
-// Each goal borrows the visual identity of its main department.
-const goalDepartments: Record<string, string> = {
-  'home-office': 'home-office',
-  'gaming-setup': 'computers',
-  'home-gym': 'fitness',
-  'photo-studio': 'photography',
-  'study-space': 'home-office',
-  'podcast-studio': 'audio',
-  'smart-home': 'smart-home',
-};
+// Each outfit template borrows the visual identity of its wardrobe (men's or women's department).
+const department = (slug: string) => (slug.endsWith('-women') ? 'women' : slug.endsWith('-men') ? 'men' : 'accessories');
 
 export function TemplateCard({ template }: { template: TemplateSummary }) {
-  const { icon: Icon, tile } = categoryVisual(goalDepartments[template.slug]);
+  const { icon: Icon, tile } = categoryVisual(department(template.slug));
   return (
     <Link
       to={`/goals/new?template=${template.slug}`}

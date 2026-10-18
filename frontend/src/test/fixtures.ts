@@ -20,16 +20,16 @@ export const emptyCart: Cart = {
 export function product(overrides: Partial<ProductSummary> = {}): ProductSummary {
   return {
     id: 10,
-    sku: 'MON-002',
-    slug: 'vantix-27-qhd-monitor',
-    name: 'Vantix 27 QHD Monitor',
-    brand: 'Vantix',
+    sku: 'ZAR-002',
+    slug: 'zara-linen-blend-shirt',
+    name: 'Zara Linen Blend Shirt',
+    brand: 'Zara',
     price: 249,
     ratingAvg: 4.5,
     ratingCount: 2900,
     qualityTier: 2,
-    categorySlug: 'monitors',
-    categoryName: 'Monitors',
+    categorySlug: 'women-jackets',
+    categoryName: 'Jackets',
     active: true,
     availableQuantity: 45,
     ...overrides,
@@ -40,7 +40,7 @@ export function product(overrides: Partial<ProductSummary> = {}): ProductSummary
 export function card(overrides: Partial<ProductCard> = {}): ProductCard {
   return {
     ...product(),
-    brandSlug: 'vantix',
+    brandSlug: 'zara',
     compareAtPrice: null,
     gender: 'UNISEX',
     newArrival: false,
