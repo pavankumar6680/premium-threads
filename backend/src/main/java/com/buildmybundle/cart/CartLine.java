@@ -1,4 +1,5 @@
 package com.buildmybundle.cart;
 
-public record CartLine(Long productId, int quantity) {
+/** A quantity of one variant (size and color) of a product. */
+public record CartLine(Long productId, Long variantId, int quantity) {
 }

@@ -11,7 +11,7 @@ async function signIn(page: Page, email: string, password: string) {
   await expect(page.getByRole('button', { name: /sign out/i })).toBeVisible();
 }
 
-test('a shopper buys a recommended bundle and the store ships it', async ({ page }) => {
+test('a shopper plans an outfit, buys jeans in their size and the store ships them', async ({ page }) => {
   // 1. A new customer signs up.
   const email = `e2e-${Date.now()}@example.com`;
   await page.goto('/register');
@@ -22,8 +22,8 @@ test('a shopper buys a recommended bundle and the store ships it', async ({ page
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByRole('button', { name: /sign out/i })).toBeVisible();
 
-  // 2. They build a home-office goal with the wizard (template defaults) and ask for bundles.
-  await page.goto('/goals/new?template=home-office');
+  // 2. They plan a weekend outfit with the wizard (template defaults) and get three looks.
+  await page.goto('/goals/new?template=weekend-casual-men');
   await expect(page.getByRole('heading', { name: 'Build your goal' })).toBeVisible();
   // template defaults are valid, so Continue walks through items, budget and preferences to the review
   const review = page.getByRole('heading', { name: 'Review your goal' });
@@ -34,12 +34,14 @@ test('a shopper buys a recommended bundle and the store ships it', async ({ page
   await page.getByRole('button', { name: /create my goal/i }).click();
   await page.getByRole('button', { name: 'Get my bundles' }).click();
   await expect(page.getByRole('heading', { name: 'Your bundles' })).toBeVisible();
+  await expect(page.getByRole('article', { name: /Balanced bundle/ })).toBeVisible();
 
-  // 3. The balanced bundle goes into the cart in one click.
-  const balanced = page.getByRole('article', { name: /Balanced bundle/ });
-  await expect(balanced).toBeVisible();
-  await balanced.getByRole('button', { name: /add bundle to cart/i }).click();
-  await expect(page.getByText('Bundle added to your cart')).toBeVisible();
+  // 3. They buy jeans in their size: the size is part of what goes into the cart.
+  await page.goto('/products/levi-s-511-slim-jeans');
+  await expect(page.getByRole('button', { name: 'Choose a size' })).toBeDisabled();
+  await page.getByRole('button', { name: '32', exact: true }).click();
+  await page.getByRole('button', { name: 'Add to cart' }).click();
+  await expect(page.getByText("Added Levi's 511 Slim Jeans to your cart")).toBeVisible();
 
   // 4. Checkout with a new address; the simulated payment is approved.
   await page.goto('/checkout');

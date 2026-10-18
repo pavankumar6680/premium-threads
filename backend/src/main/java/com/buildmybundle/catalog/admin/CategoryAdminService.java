@@ -49,6 +49,7 @@ public class CategoryAdminService {
 				       NOT EXISTS (SELECT 1 FROM categories ch WHERE ch.parent_id = c.id) AS leaf,
 				       (SELECT count(*) FROM products p WHERE p.category_id = c.id) AS product_count
 				FROM categories c LEFT JOIN categories d ON d.id = c.parent_id
+				WHERE c.active
 				ORDER BY coalesce(d.sort_order, c.sort_order), c.parent_id IS NOT NULL, c.sort_order, c.name
 				""")
 			.query((rs, n) -> new AdminCategory(rs.getLong("id"), rs.getString("slug"), rs.getString("name"),
@@ -60,7 +61,7 @@ public class CategoryAdminService {
 
 	@Transactional
 	public AdminCategory create(CategoryRequest request) {
-		Long departmentId = jdbc.sql("SELECT id FROM categories WHERE slug = :slug AND parent_id IS NULL")
+		Long departmentId = jdbc.sql("SELECT id FROM categories WHERE slug = :slug AND parent_id IS NULL AND active")
 			.param("slug", request.departmentSlug())
 			.query(Long.class)
 			.optional()

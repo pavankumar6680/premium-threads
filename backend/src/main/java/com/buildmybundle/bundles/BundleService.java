@@ -30,6 +30,7 @@ import com.buildmybundle.catalog.CategoryInfo;
 import com.buildmybundle.catalog.ProductCatalog;
 import com.buildmybundle.catalog.ProductFacts;
 import com.buildmybundle.catalog.ProductSummary;
+import com.buildmybundle.catalog.VariantSummary;
 import com.buildmybundle.compatibility.CompatibilityChecker;
 import com.buildmybundle.compatibility.CompatibilityModels.Report;
 import com.buildmybundle.compatibility.CompatibilityModels.Rule;
@@ -117,7 +118,31 @@ public class BundleService {
 			throw ApiException.conflict("BUNDLE_INCOMPATIBLE",
 					"This bundle has compatibility conflicts. Resolve them before adding it to your cart.");
 		}
-		return bundle.getItems().stream().map(i -> new PurchaseLine(i.getProductId(), i.getQuantity())).toList();
+		List<PurchaseLine> lines = new ArrayList<>();
+		List<Long> needSize = new ArrayList<>();
+		for (BundleItem item : bundle.getItems()) {
+			Long variantId = item.getVariantId() != null ? item.getVariantId() : onlyVariant(item.getProductId());
+			if (variantId == null) {
+				needSize.add(item.getProductId());
+			}
+			else {
+				lines.add(new PurchaseLine(item.getProductId(), variantId, item.getQuantity()));
+			}
+		}
+		if (!needSize.isEmpty()) {
+			throw ApiException.conflict("SIZE_REQUIRED", "Choose a size and color for every piece before adding the outfit to your cart.")
+				.with("productIds", needSize);
+		}
+		return lines;
+	}
+
+	/** The single active option of a product sold in one size and color, or null. */
+	private Long onlyVariant(Long productId) {
+		List<VariantSummary> options = catalog.variantsOf(productId)
+			.stream()
+			.filter(VariantSummary::active)
+			.toList();
+		return options.size() == 1 ? options.getFirst().id() : null;
 	}
 
 	// ---------------------------------------------------------------- workspace

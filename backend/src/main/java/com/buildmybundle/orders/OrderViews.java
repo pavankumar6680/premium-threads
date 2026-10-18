@@ -19,8 +19,8 @@ public final class OrderViews {
 	}
 
 	/** {@code slug} is the product's current slug for linking; name and price are the purchase-time snapshot. */
-	public record Item(Long productId, String slug, String sku, String name, String brand, BigDecimal unitPrice,
-			int quantity, BigDecimal lineTotal) {
+	public record Item(Long productId, Long variantId, String slug, String sku, String name, String brand,
+			String size, String color, BigDecimal unitPrice, int quantity, BigDecimal lineTotal) {
 	}
 
 	public record OrderSummary(Long id, String orderNumber, String status, Instant createdAt, BigDecimal total,

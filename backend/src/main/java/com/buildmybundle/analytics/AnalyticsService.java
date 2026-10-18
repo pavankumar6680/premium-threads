@@ -27,6 +27,16 @@ public class AnalyticsService {
 
 	public static final int LOW_STOCK_THRESHOLD = 5;
 
+	/** Units per active product: the sum over its active variants. */
+	private static final String PRODUCT_STOCK = """
+			SELECT p.id, p.name, p.sku, coalesce(sum(s.quantity_on_hand), 0) AS units
+			FROM products p
+			LEFT JOIN product_variants v ON v.product_id = p.id AND v.active
+			LEFT JOIN variant_stock s ON s.variant_id = v.id
+			WHERE p.status = 'ACTIVE'
+			GROUP BY p.id
+			""";
+
 	public record Summary(int days, Instant from, Sales sales, List<DailyPoint> daily, Map<String, Long> ordersByStatus,
 			List<TopProduct> topProducts, Inventory inventory, Goals goals, Recommendations recommendations,
 			Customers customers) {
@@ -144,19 +154,18 @@ public class AnalyticsService {
 		record Counts(long active, long low, long out) {
 		}
 		Counts c = jdbc.sql("""
+				WITH stock AS (%s)
 				SELECT count(*) AS active,
-				       count(*) FILTER (WHERE coalesce(i.quantity_on_hand, 0) <= :threshold) AS low,
-				       count(*) FILTER (WHERE coalesce(i.quantity_on_hand, 0) = 0) AS out
-				FROM products p LEFT JOIN inventory i ON i.product_id = p.id WHERE p.status = 'ACTIVE'
-				""").param("threshold", LOW_STOCK_THRESHOLD)
+				       count(*) FILTER (WHERE units <= :threshold) AS low,
+				       count(*) FILTER (WHERE units = 0) AS out
+				FROM stock
+				""".formatted(PRODUCT_STOCK)).param("threshold", LOW_STOCK_THRESHOLD)
 			.query((rs, n) -> new Counts(rs.getLong("active"), rs.getLong("low"), rs.getLong("out")))
 			.single();
 		List<LowStockProduct> lowest = jdbc.sql("""
-				SELECT p.id, p.name, p.sku, coalesce(i.quantity_on_hand, 0) AS stock
-				FROM products p LEFT JOIN inventory i ON i.product_id = p.id
-				WHERE p.status = 'ACTIVE' AND coalesce(i.quantity_on_hand, 0) <= :threshold
-				ORDER BY stock, p.name LIMIT 8
-				""").param("threshold", LOW_STOCK_THRESHOLD)
+				WITH stock AS (%s)
+				SELECT id, name, sku, units AS stock FROM stock WHERE units <= :threshold ORDER BY units, name LIMIT 8
+				""".formatted(PRODUCT_STOCK)).param("threshold", LOW_STOCK_THRESHOLD)
 			.query((rs, n) -> new LowStockProduct(rs.getLong("id"), rs.getString("name"), rs.getString("sku"), rs.getInt("stock")))
 			.list();
 		return new Inventory(c.active(), c.low(), c.out(), lowest);

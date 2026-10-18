@@ -31,6 +31,10 @@ public class BundleItem {
 	@Column(name = "category_id", nullable = false)
 	private Long categoryId;
 
+	/** The chosen size and color, once known (null until the customer or the outfit builder picks one). */
+	@Column(name = "variant_id")
+	private Long variantId;
+
 	@Column(nullable = false)
 	private int quantity;
 
@@ -67,6 +71,7 @@ public class BundleItem {
 
 	public void replaceProduct(Long productId, BigDecimal unitPrice, String explanation) {
 		this.productId = productId;
+		this.variantId = null; // a size or color of the previous product does not apply
 		this.unitPrice = unitPrice;
 		this.explanation = explanation;
 	}
@@ -81,6 +86,14 @@ public class BundleItem {
 
 	public void refreshPrice(BigDecimal unitPrice) {
 		this.unitPrice = unitPrice;
+	}
+
+	public void chooseVariant(Long variantId) {
+		this.variantId = variantId;
+	}
+
+	public Long getVariantId() {
+		return variantId;
 	}
 
 	public Long getProductId() {

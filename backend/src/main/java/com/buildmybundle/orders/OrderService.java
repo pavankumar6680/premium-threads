@@ -12,6 +12,7 @@ import com.buildmybundle.cart.CartLine;
 import com.buildmybundle.cart.CartService;
 import com.buildmybundle.catalog.ProductCatalog;
 import com.buildmybundle.catalog.ProductSummary;
+import com.buildmybundle.catalog.VariantSummary;
 import com.buildmybundle.inventory.InventoryService;
 import com.buildmybundle.orders.OrderViews.Item;
 import com.buildmybundle.orders.OrderViews.OrderSummary;
@@ -108,9 +109,11 @@ public class OrderService {
 			.orElseThrow(() -> ApiException.notFound("ADDRESS_NOT_FOUND", "Address not found."));
 
 		Map<Long, ProductSummary> products = catalog.findByIds(lines.stream().map(CartLine::productId).toList());
+		Map<Long, VariantSummary> variants = catalog.findVariants(lines.stream().map(CartLine::variantId).toList());
 		List<Long> unavailable = lines.stream()
+			.filter(l -> products.get(l.productId()) == null || !products.get(l.productId()).active()
+					|| variants.get(l.variantId()) == null || !variants.get(l.variantId()).active())
 			.map(CartLine::productId)
-			.filter(id -> products.get(id) == null || !products.get(id).active())
 			.toList();
 		if (!unavailable.isEmpty()) {
 			throw ApiException.conflict("PRODUCT_UNAVAILABLE", "Some items in your cart are no longer available.")
@@ -120,7 +123,8 @@ public class OrderService {
 		CustomerOrder order = new CustomerOrder(newOrderNumber(), userId, idempotencyKey, shippingAddress(address));
 		for (CartLine line : lines) {
 			ProductSummary p = products.get(line.productId());
-			order.addItem(p.id(), p.sku(), p.name(), p.brand(), p.price(), line.quantity());
+			VariantSummary v = variants.get(line.variantId());
+			order.addItem(p.id(), v.id(), v.sku(), v.size(), v.color(), p.name(), p.brand(), p.price(), line.quantity());
 		}
 		order.applyTotals(pricing.quote(order.itemsSubtotal()));
 
@@ -166,9 +170,10 @@ public class OrderService {
 			.findByIds(order.getItems().stream().map(OrderItem::getProductId).toList());
 		List<Item> items = order.getItems()
 			.stream()
-			.map(i -> new Item(i.getProductId(),
+			.map(i -> new Item(i.getProductId(), i.getVariantId(),
 					Optional.ofNullable(current.get(i.getProductId())).map(ProductSummary::slug).orElse(null),
-					i.getSku(), i.getProductName(), i.getBrand(), i.getUnitPrice(), i.getQuantity(), i.getLineTotal()))
+					i.getSku(), i.getProductName(), i.getBrand(), displaySize(i.getSize()), displayColor(i.getColor()),
+					i.getUnitPrice(), i.getQuantity(), i.getLineTotal()))
 			.toList();
 		return new OrderView(order.getId(), order.getOrderNumber(), order.getStatus().name(), order.getCreatedAt(),
 				order.getCancelledAt(), items, order.getSubtotal(), order.getShipping(), order.getTax(),
@@ -181,6 +186,15 @@ public class OrderService {
 		return new OrderSummary(order.getId(), order.getOrderNumber(), order.getStatus().name(), order.getCreatedAt(),
 				order.getTotal(), order.getCurrency(), items.stream().mapToInt(OrderItem::getQuantity).sum(),
 				items.stream().limit(3).map(OrderItem::getProductName).toList());
+	}
+
+	/** Default options of single-variant products are not worth showing. */
+	private static String displaySize(String size) {
+		return "One size".equals(size) ? null : size;
+	}
+
+	private static String displayColor(String color) {
+		return "Standard".equals(color) ? null : color;
 	}
 
 	private static ShippingAddress shippingAddress(AddressSnapshot a) {

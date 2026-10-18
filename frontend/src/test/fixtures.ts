@@ -1,5 +1,5 @@
 import type { Cart } from '../features/cart/api';
-import type { Page, ProductSummary } from '../features/catalog/types';
+import type { Page, ProductCard, ProductSummary } from '../features/catalog/types';
 import type { User } from '../features/auth/types';
 
 export const ada: User = { id: 1, email: 'ada@example.com', fullName: 'Ada Lovelace', roles: ['CUSTOMER'] };
@@ -32,6 +32,24 @@ export function product(overrides: Partial<ProductSummary> = {}): ProductSummary
     categoryName: 'Monitors',
     active: true,
     availableQuantity: 45,
+    ...overrides,
+  };
+}
+
+/** A listing card: the summary plus merchandising data (sold in one option unless overridden). */
+export function card(overrides: Partial<ProductCard> = {}): ProductCard {
+  return {
+    ...product(),
+    brandSlug: 'vantix',
+    compareAtPrice: null,
+    gender: 'UNISEX',
+    newArrival: false,
+    trending: false,
+    featured: false,
+    colors: [],
+    sizes: ['One size'],
+    inStockSizes: ['One size'],
+    imageUrl: null,
     ...overrides,
   };
 }

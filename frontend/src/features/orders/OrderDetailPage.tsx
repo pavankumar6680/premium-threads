@@ -75,7 +75,7 @@ export function OrderDetailPage() {
         <section className="rounded-2xl border border-slate-200 bg-white" aria-label="Items">
           <ul className="divide-y divide-slate-100">
             {order.items.map((item) => (
-              <li key={item.productId} className="flex justify-between gap-4 p-4 text-sm">
+              <li key={item.variantId ?? item.productId} className="flex justify-between gap-4 p-4 text-sm">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-slate-500">{item.brand}</p>
                   {item.slug ? (
@@ -83,6 +83,7 @@ export function OrderDetailPage() {
                   ) : (
                     <p className="font-semibold">{item.name}</p>
                   )}
+                  {(item.size || item.color) && <p className="text-slate-700">{[item.color, item.size].filter(Boolean).join(' · ')}</p>}
                   <p className="text-slate-600">{item.quantity} × {formatMoney(item.unitPrice, order.currency)}</p>
                 </div>
                 <p className="font-semibold">{formatMoney(item.lineTotal, order.currency)}</p>

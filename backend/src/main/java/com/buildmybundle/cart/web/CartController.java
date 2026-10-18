@@ -48,7 +48,8 @@ class CartController {
 
 	@PostMapping("/items")
 	CartView add(@AuthenticationPrincipal AuthenticatedUser user, @Valid @RequestBody AddItemRequest body) {
-		return cartService.addItem(user.getId(), body.productId(), body.quantity() == null ? 1 : body.quantity());
+		Long variantId = cartService.resolveVariant(body.productId(), body.variantId());
+		return cartService.addItem(user.getId(), variantId, body.quantity() == null ? 1 : body.quantity());
 	}
 
 	@Operation(summary = "Add every product of a bundle to the cart (all or nothing)")
@@ -56,20 +57,21 @@ class CartController {
 	CartView addBundle(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID bundleId) {
 		List<CartLine> lines = bundles.purchaseLines(bundleId)
 			.stream()
-			.map(l -> new CartLine(l.productId(), l.quantity()))
+			.map(l -> new CartLine(l.productId(), l.variantId(), l.quantity()))
 			.toList();
 		return cartService.addLines(user.getId(), lines);
 	}
 
-	@PutMapping("/items/{productId}")
-	CartView setQuantity(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable Long productId,
+	@Operation(summary = "Change the quantity of a cart line (identified by its variant)")
+	@PutMapping("/items/{variantId}")
+	CartView setQuantity(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable Long variantId,
 			@Valid @RequestBody QuantityRequest body) {
-		return cartService.setQuantity(user.getId(), productId, body.quantity());
+		return cartService.setQuantity(user.getId(), variantId, body.quantity());
 	}
 
-	@DeleteMapping("/items/{productId}")
-	CartView remove(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable Long productId) {
-		return cartService.removeItem(user.getId(), productId);
+	@DeleteMapping("/items/{variantId}")
+	CartView remove(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable Long variantId) {
+		return cartService.removeItem(user.getId(), variantId);
 	}
 
 	@DeleteMapping
@@ -78,7 +80,11 @@ class CartController {
 		cartService.clear(user.getId());
 	}
 
-	record AddItemRequest(@NotNull Long productId, @Min(1) @Max(CartService.MAX_LINE_QUANTITY) Integer quantity) {
+	/**
+	 * Either a variant (size and color), or a product sold in a single option. Sending both checks that the
+	 * variant belongs to the product.
+	 */
+	record AddItemRequest(Long productId, Long variantId, @Min(1) @Max(CartService.MAX_LINE_QUANTITY) Integer quantity) {
 	}
 
 	record QuantityRequest(@NotNull @Min(1) @Max(CartService.MAX_LINE_QUANTITY) Integer quantity) {

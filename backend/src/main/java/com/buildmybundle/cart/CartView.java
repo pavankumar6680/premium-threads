@@ -12,9 +12,12 @@ public record CartView(List<Item> items, int itemCount, BigDecimal subtotal, Big
 		BigDecimal total, BigDecimal freeShippingThreshold, boolean checkoutReady) {
 
 	/**
-	 * @param available false when the product was discontinued or there is not enough stock for {@code quantity}
+	 * @param sku the variant's SKU
+	 * @param availableQuantity stock of this variant
+	 * @param available false when the product or variant was discontinued or there is not enough stock
 	 */
-	public record Item(Long productId, String sku, String slug, String name, String brand, String categorySlug,
-			BigDecimal unitPrice, int quantity, BigDecimal lineTotal, int availableQuantity, boolean available) {
+	public record Item(Long productId, Long variantId, String sku, String slug, String name, String brand,
+			String categorySlug, String size, String color, String colorHex, BigDecimal unitPrice, int quantity,
+			BigDecimal lineTotal, int availableQuantity, boolean available) {
 	}
 }

@@ -1,21 +1,29 @@
 package com.buildmybundle.catalog.admin;
 
 import java.math.BigDecimal;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Types;
 import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.buildmybundle.catalog.admin.AdminCatalogModels.AdminProduct;
 import com.buildmybundle.catalog.admin.AdminCatalogModels.AdminProductRow;
+import com.buildmybundle.catalog.admin.AdminCatalogModels.AdminVariant;
 import com.buildmybundle.catalog.admin.AdminCatalogModels.AttributeType;
 import com.buildmybundle.catalog.admin.AdminCatalogModels.ProductRequest;
+import com.buildmybundle.catalog.admin.AdminCatalogModels.VariantInput;
 import com.buildmybundle.inventory.InventoryService;
 import com.buildmybundle.shared.audit.AuditLog;
 import com.buildmybundle.shared.error.ApiException;
@@ -26,19 +34,22 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Product administration: create, edit, price, stock and status. Every change is audited.
+ * Product administration: details, price and discounts, merchandising flags, styles and occasions,
+ * variants (size × color) and their stock, and status. Every change is audited.
  *
  * <p>
  * Edits use optimistic locking on {@code products.version}: an update states the version it was based on
- * and is refused with 409 if someone else changed the product meanwhile, so two admins cannot silently
- * overwrite each other. Attribute values are validated against the category's attribute definitions,
- * because compatibility rules and filters read them.
+ * and is refused with 409 if someone else changed the product meanwhile. Attribute values are validated
+ * against the category's attribute definitions, because filters and outfit-matching rules read them.
+ * Variants are never deleted (orders reference them): leaving one out of an update deactivates it.
  */
 @Service
 public class ProductAdminService {
 
 	public static final int LOW_STOCK_THRESHOLD = 5;
 	private static final String ENTITY = "PRODUCT";
+	private static final String DEFAULT_SIZE = "One size";
+	private static final String DEFAULT_COLOR = "Standard";
 
 	private final JdbcClient jdbc;
 	private final InventoryService inventory;
@@ -57,8 +68,13 @@ public class ProductAdminService {
 	private record Definition(Long id, String key, AttributeType type) {
 	}
 
-	private record Current(Long id, String sku, String name, BigDecimal price, boolean active, Long categoryId,
-			long version) {
+	private record Current(Long id, String sku, String name, BigDecimal price, BigDecimal compareAtPrice,
+			boolean active, Long categoryId, String gender, boolean featured, boolean newArrival, boolean trending,
+			String material, String care, long version) {
+	}
+
+	private record VariantRow(Long id, Long productId, String sku, String size, String color, String colorHex,
+			String colorFamily, boolean active) {
 	}
 
 	// ---------------------------------------------------------------- queries
@@ -73,7 +89,7 @@ public class ProductAdminService {
 			params.put("q", "%" + q.trim().replace("%", "\\%").replace("_", "\\_") + "%");
 		}
 		if (category != null && !category.isBlank()) {
-			where.append(" AND c.slug = :category");
+			where.append(" AND (c.slug = :category OR c.parent_id = (SELECT id FROM categories WHERE slug = :category))");
 			params.put("category", category);
 		}
 		if (active != null) {
@@ -81,63 +97,74 @@ public class ProductAdminService {
 			params.put("status", active ? "ACTIVE" : "INACTIVE");
 		}
 		String from = " FROM products p JOIN categories c ON c.id = p.category_id";
-		if (lowStock) {
-			// stock belongs to the inventory module: ask it which of the matching products are running low
-			List<Long> ids = jdbc.sql("SELECT p.id" + from + where).paramSource(params).query(Long.class).list();
-			List<Long> low = inventory.productIdsWithStockAtMost(ids, LOW_STOCK_THRESHOLD);
-			if (low.isEmpty()) {
-				return PageResponse.of(List.of(), page, size, 0);
-			}
-			where.append(" AND p.id IN (:low)");
-			params.put("low", low);
+		String select = """
+				SELECT p.id, p.sku, p.slug, p.name, p.brand, p.price, p.compare_at_price, p.status, p.quality_tier,
+				       p.rating_avg, p.rating_count, c.slug AS category_slug, c.name AS category_name, p.gender, p.featured,
+				       p.updated_at""" + from + where;
+		if (lowStock || sort == Sort.STOCK) {
+			// stock belongs to the inventory module: totals are computed in memory over the filtered set
+			List<AdminProductRow> all = withStock(jdbc.sql(select).paramSource(params).query(this::row).list());
+			List<AdminProductRow> filtered = all.stream()
+				.filter(r -> !lowStock || r.stock() <= LOW_STOCK_THRESHOLD)
+				.sorted(sort == Sort.STOCK || lowStock
+						? Comparator.comparingInt(AdminProductRow::stock).thenComparing(AdminProductRow::name)
+						: Comparator.comparing(AdminProductRow::name))
+				.toList();
+			return PageResponse.of(filtered.stream().skip((long) page * size).limit(size).toList(), page, size,
+					filtered.size());
 		}
 		long total = jdbc.sql("SELECT count(*)" + from + where).paramSource(params).query(Long.class).single();
 		if (total == 0) {
 			return PageResponse.of(List.of(), page, size, 0);
 		}
-		List<AdminProductRow> rows;
-		String select = """
-				SELECT p.id, p.sku, p.slug, p.name, p.brand, p.price, p.status, p.quality_tier, p.rating_avg,
-				       p.rating_count, c.slug AS category_slug, c.name AS category_name, p.updated_at""" + from + where;
-		if (sort == Sort.STOCK) {
-			// sorted by a value owned by another module: page in memory over the (filtered) id set
-			List<AdminProductRow> all = withStock(jdbc.sql(select).paramSource(params).query(this::row).list());
-			rows = all.stream()
-				.sorted(java.util.Comparator.comparingInt(AdminProductRow::stock).thenComparing(AdminProductRow::name))
-				.skip((long) page * size)
-				.limit(size)
-				.toList();
-		}
-		else {
-			String order = switch (sort == null ? Sort.NAME : sort) {
-				case PRICE -> " ORDER BY p.price, p.id";
-				case UPDATED -> " ORDER BY p.updated_at DESC, p.id DESC";
-				default -> " ORDER BY p.name, p.id";
-			};
-			params.put("limit", size);
-			params.put("offset", page * size);
-			rows = withStock(jdbc.sql(select + order + " LIMIT :limit OFFSET :offset")
-				.paramSource(params)
-				.query(this::row)
-				.list());
-		}
+		String order = switch (sort == null ? Sort.NAME : sort) {
+			case PRICE -> " ORDER BY p.price, p.id";
+			case UPDATED -> " ORDER BY p.updated_at DESC, p.id DESC";
+			default -> " ORDER BY p.name, p.id";
+		};
+		params.put("limit", size);
+		params.put("offset", page * size);
+		List<AdminProductRow> rows = withStock(jdbc.sql(select + order + " LIMIT :limit OFFSET :offset")
+			.paramSource(params)
+			.query(this::row)
+			.list());
 		return PageResponse.of(rows, page, size, total);
 	}
 
 	@Transactional(readOnly = true)
 	public AdminProduct get(Long id) {
-		return jdbc.sql("""
-				SELECT p.id, p.sku, p.slug, p.name, p.brand, p.description, p.price, p.quality_tier, p.status,
-				       c.slug AS category_slug, p.rating_avg, p.rating_count, p.version, p.updated_at
-				FROM products p JOIN categories c ON c.id = p.category_id WHERE p.id = :id
-				""").param("id", id).query((rs, n) -> new AdminProduct(rs.getLong("id"), rs.getString("sku"),
-				rs.getString("slug"), rs.getString("name"), rs.getString("brand"), rs.getString("description"),
-				rs.getBigDecimal("price"), rs.getInt("quality_tier"), "ACTIVE".equals(rs.getString("status")),
-				rs.getString("category_slug"), inventory.availableQuantity(id), tags(id), attributes(id),
-				rs.getBigDecimal("rating_avg"), rs.getInt("rating_count"), rs.getLong("version"),
-				rs.getTimestamp("updated_at").toInstant()))
+		record Head(String sku, String slug, String name, String brand, String brandSlug, String description,
+				BigDecimal price, BigDecimal compareAt, int tier, boolean active, String category, String gender,
+				boolean featured, boolean newArrival, boolean trending, String material, String care,
+				BigDecimal ratingAvg, int ratingCount, long version, java.time.Instant updatedAt) {
+		}
+		Head h = jdbc.sql("""
+				SELECT p.sku, p.slug, p.name, p.brand, b.slug AS brand_slug, p.description, p.price, p.compare_at_price,
+				       p.quality_tier, p.status, c.slug AS category_slug, p.gender, p.featured, p.new_arrival, p.trending,
+				       p.material, p.care, p.rating_avg, p.rating_count, p.version, p.updated_at
+				FROM products p JOIN categories c ON c.id = p.category_id JOIN brands b ON b.id = p.brand_id
+				WHERE p.id = :id
+				""").param("id", id).query((rs, n) -> new Head(rs.getString("sku"), rs.getString("slug"),
+				rs.getString("name"), rs.getString("brand"), rs.getString("brand_slug"), rs.getString("description"),
+				rs.getBigDecimal("price"), rs.getBigDecimal("compare_at_price"), rs.getInt("quality_tier"),
+				"ACTIVE".equals(rs.getString("status")), rs.getString("category_slug"), rs.getString("gender"),
+				rs.getBoolean("featured"), rs.getBoolean("new_arrival"), rs.getBoolean("trending"),
+				rs.getString("material"), rs.getString("care"), rs.getBigDecimal("rating_avg"),
+				rs.getInt("rating_count"), rs.getLong("version"), rs.getTimestamp("updated_at").toInstant()))
 			.optional()
 			.orElseThrow(ProductAdminService::notFound);
+		List<VariantRow> variantRows = variants(List.of(id));
+		Map<Long, Integer> stock = inventory.availableQuantities(variantRows.stream().map(VariantRow::id).toList());
+		List<AdminVariant> variants = variantRows.stream()
+			.map(v -> new AdminVariant(v.id(), v.sku(), v.size(), v.color(), v.colorHex(), v.colorFamily(), v.active(),
+					stock.getOrDefault(v.id(), 0)))
+			.toList();
+		int total = variants.stream().filter(AdminVariant::active).mapToInt(AdminVariant::stock).sum();
+		return new AdminProduct(id, h.sku(), h.slug(), h.name(), h.brand(), h.brandSlug(), h.description(), h.price(),
+				h.compareAt(), h.tier(), h.active(), h.category(), h.gender(), h.featured(), h.newArrival(), h.trending(),
+				h.material(), h.care(), total, variants, slugs("product_styles", "styles", "style_id", id),
+				slugs("product_occasions", "occasions", "occasion_id", id), tags(id), attributes(id), h.ratingAvg(),
+				h.ratingCount(), h.version(), h.updatedAt());
 	}
 
 	// ---------------------------------------------------------------- commands
@@ -145,32 +172,53 @@ public class ProductAdminService {
 	@Transactional
 	public AdminProduct create(ProductRequest request) {
 		Long categoryId = leafCategoryId(request.categorySlug());
+		Brand brand = brand(request.brand());
 		String sku = request.sku().trim().toUpperCase(Locale.ROOT);
 		if (jdbc.sql("SELECT count(*) FROM products WHERE sku = :sku").param("sku", sku).query(Long.class).single() > 0) {
 			throw ApiException.conflict("SKU_TAKEN", "Another product already uses SKU " + sku + ".").with("field", "sku");
 		}
+		checkCompareAt(request.price(), request.compareAtPrice());
 		Map<Definition, List<Object>> attributes = validateAttributes(categoryId, request.attributes());
+		List<Long> styleIds = vocabularyIds("styles", request.styles(), "styles");
+		List<Long> occasionIds = vocabularyIds("occasions", request.occasions(), "occasions");
+		List<VariantInput> variants = request.variants() == null || request.variants().isEmpty()
+				? List.of(new VariantInput(null, DEFAULT_SIZE, DEFAULT_COLOR, null, "NEUTRAL", true,
+						Objects.requireNonNullElse(request.stock(), 0)))
+				: request.variants();
+		checkDistinctOptions(variants);
 		Long id = jdbc.sql("""
-				INSERT INTO products (category_id, sku, slug, name, brand, description, price, quality_tier, status)
-				VALUES (:categoryId, :sku, :slug, :name, :brand, :description, :price, :tier, :status)
+				INSERT INTO products (category_id, brand_id, brand, sku, slug, name, description, price, compare_at_price,
+				                      quality_tier, status, gender, featured, new_arrival, trending, material, care)
+				VALUES (:categoryId, :brandId, :brand, :sku, :slug, :name, :description, :price, :compareAt, :tier, :status,
+				        :gender, :featured, :newArrival, :trending, :material, :care)
 				RETURNING id
 				""")
 			.param("categoryId", categoryId)
+			.param("brandId", brand.id())
+			.param("brand", brand.name())
 			.param("sku", sku)
 			.param("slug", uniqueSlug(request.name(), sku))
 			.param("name", request.name().trim())
-			.param("brand", request.brand().trim())
 			.param("description", Objects.requireNonNullElse(request.description(), "").trim())
 			.param("price", request.price())
+			.param("compareAt", request.compareAtPrice(), Types.NUMERIC)
 			.param("tier", request.qualityTier())
 			.param("status", request.active() ? "ACTIVE" : "INACTIVE")
+			.param("gender", Objects.requireNonNullElse(request.gender(), "UNISEX"))
+			.param("featured", Boolean.TRUE.equals(request.featured()))
+			.param("newArrival", Boolean.TRUE.equals(request.newArrival()))
+			.param("trending", Boolean.TRUE.equals(request.trending()))
+			.param("material", blankToNull(request.material()), Types.VARCHAR)
+			.param("care", blankToNull(request.care()), Types.VARCHAR)
 			.query(Long.class)
 			.single();
 		writeAttributes(id, attributes);
 		writeTags(id, request.tags());
-		inventory.setStock(id, Objects.requireNonNullElse(request.stock(), 0));
-		audit.record("PRODUCT_CREATED", ENTITY, id,
-				Map.of("sku", sku, "name", request.name().trim(), "price", request.price(), "category", request.categorySlug()));
+		writeLinks("product_styles", "style_id", id, styleIds);
+		writeLinks("product_occasions", "occasion_id", id, occasionIds);
+		saveVariants(id, sku, variants);
+		audit.record("PRODUCT_CREATED", ENTITY, id, Map.of("sku", sku, "name", request.name().trim(), "price",
+				request.price(), "category", request.categorySlug(), "variants", variants.size()));
 		return get(id);
 	}
 
@@ -182,6 +230,7 @@ public class ProductAdminService {
 		}
 		Current before = current(id);
 		Long categoryId = leafCategoryId(request.categorySlug());
+		Brand brand = brand(request.brand());
 		String sku = request.sku().trim().toUpperCase(Locale.ROOT);
 		if (jdbc.sql("SELECT count(*) FROM products WHERE sku = :sku AND id <> :id")
 			.param("sku", sku)
@@ -190,21 +239,41 @@ public class ProductAdminService {
 			.single() > 0) {
 			throw ApiException.conflict("SKU_TAKEN", "Another product already uses SKU " + sku + ".").with("field", "sku");
 		}
+		// unspecified merchandising fields keep their current values
+		BigDecimal compareAt = request.compareAtPrice() != null ? request.compareAtPrice()
+				: before.compareAtPrice() != null && before.compareAtPrice().compareTo(request.price()) > 0
+						? before.compareAtPrice() : null;
+		checkCompareAt(request.price(), compareAt);
 		Map<Definition, List<Object>> attributes = validateAttributes(categoryId, request.attributes());
+		List<Long> styleIds = request.styles() == null ? null : vocabularyIds("styles", request.styles(), "styles");
+		List<Long> occasionIds = request.occasions() == null ? null
+				: vocabularyIds("occasions", request.occasions(), "occasions");
+		if (request.variants() != null) {
+			checkDistinctOptions(request.variants());
+		}
 		int updated = jdbc.sql("""
-				UPDATE products SET category_id = :categoryId, sku = :sku, name = :name, brand = :brand,
-				       description = :description, price = :price, quality_tier = :tier, status = :status,
-				       updated_at = now(), version = version + 1
+				UPDATE products SET category_id = :categoryId, brand_id = :brandId, brand = :brand, sku = :sku, name = :name,
+				       description = :description, price = :price, compare_at_price = :compareAt, quality_tier = :tier,
+				       status = :status, gender = :gender, featured = :featured, new_arrival = :newArrival,
+				       trending = :trending, material = :material, care = :care, updated_at = now(), version = version + 1
 				WHERE id = :id AND version = :version
 				""")
 			.param("categoryId", categoryId)
+			.param("brandId", brand.id())
+			.param("brand", brand.name())
 			.param("sku", sku)
 			.param("name", request.name().trim())
-			.param("brand", request.brand().trim())
 			.param("description", Objects.requireNonNullElse(request.description(), "").trim())
 			.param("price", request.price())
+			.param("compareAt", compareAt, Types.NUMERIC)
 			.param("tier", request.qualityTier())
 			.param("status", request.active() ? "ACTIVE" : "INACTIVE")
+			.param("gender", Objects.requireNonNullElse(request.gender(), before.gender()))
+			.param("featured", Objects.requireNonNullElse(request.featured(), before.featured()))
+			.param("newArrival", Objects.requireNonNullElse(request.newArrival(), before.newArrival()))
+			.param("trending", Objects.requireNonNullElse(request.trending(), before.trending()))
+			.param("material", request.material() != null ? blankToNull(request.material()) : before.material(), Types.VARCHAR)
+			.param("care", request.care() != null ? blankToNull(request.care()) : before.care(), Types.VARCHAR)
 			.param("id", id)
 			.param("version", request.version())
 			.update();
@@ -217,10 +286,24 @@ public class ProductAdminService {
 		writeAttributes(id, attributes);
 		jdbc.sql("DELETE FROM product_tags WHERE product_id = :id").param("id", id).update();
 		writeTags(id, request.tags());
+		if (styleIds != null) {
+			jdbc.sql("DELETE FROM product_styles WHERE product_id = :id").param("id", id).update();
+			writeLinks("product_styles", "style_id", id, styleIds);
+		}
+		if (occasionIds != null) {
+			jdbc.sql("DELETE FROM product_occasions WHERE product_id = :id").param("id", id).update();
+			writeLinks("product_occasions", "occasion_id", id, occasionIds);
+		}
+		if (request.variants() != null) {
+			saveVariants(id, sku, request.variants());
+		}
 
 		Map<String, Object> changes = new LinkedHashMap<>();
 		if (before.price().compareTo(request.price()) != 0) {
 			changes.put("price", Map.of("from", before.price(), "to", request.price()));
+		}
+		if (!Objects.equals(before.compareAtPrice(), compareAt)) {
+			changes.put("compareAtPrice", Map.of("from", String.valueOf(before.compareAtPrice()), "to", String.valueOf(compareAt)));
 		}
 		if (before.active() != request.active()) {
 			changes.put("active", Map.of("from", before.active(), "to", request.active()));
@@ -231,19 +314,38 @@ public class ProductAdminService {
 		if (!before.categoryId().equals(categoryId)) {
 			changes.put("category", request.categorySlug());
 		}
+		if (request.variants() != null) {
+			changes.put("variants", request.variants().size());
+		}
 		changes.put("sku", sku);
 		audit.record("PRODUCT_UPDATED", ENTITY, id, changes);
 		return get(id);
 	}
 
+	/** Sets the stock of a product sold in a single option; products with sizes or colors use {@link #setVariantStock}. */
 	@Transactional
 	public AdminProduct setStock(Long id, int quantity) {
 		current(id);
-		int before = inventory.availableQuantity(id);
-		inventory.setStock(id, quantity);
-		jdbc.sql("UPDATE products SET updated_at = now() WHERE id = :id").param("id", id).update();
-		audit.record("STOCK_SET", ENTITY, id, Map.of("from", before, "to", quantity));
+		List<VariantRow> active = variants(List.of(id)).stream().filter(VariantRow::active).toList();
+		if (active.size() != 1) {
+			throw ApiException.conflict("VARIANT_REQUIRED", "This product has several sizes or colors: set stock per variant.")
+				.with("variantIds", active.stream().map(VariantRow::id).toList());
+		}
+		setVariantStock(active.getFirst().id(), quantity);
 		return get(id);
+	}
+
+	@Transactional
+	public AdminProduct setVariantStock(Long variantId, int quantity) {
+		VariantRow variant = variantsByIds(List.of(variantId)).stream()
+			.findFirst()
+			.orElseThrow(() -> ApiException.notFound("VARIANT_NOT_FOUND", "This variant does not exist."));
+		int before = inventory.availableQuantity(variantId);
+		inventory.setStock(variantId, quantity);
+		jdbc.sql("UPDATE products SET updated_at = now() WHERE id = :id").param("id", variant.productId()).update();
+		audit.record("STOCK_SET", ENTITY, variant.productId(),
+				Map.of("variant", variant.sku(), "from", before, "to", quantity));
+		return get(variant.productId());
 	}
 
 	@Transactional
@@ -256,6 +358,148 @@ public class ProductAdminService {
 			audit.record(active ? "PRODUCT_ACTIVATED" : "PRODUCT_DEACTIVATED", ENTITY, id, Map.of("sku", before.sku()));
 		}
 		return get(id);
+	}
+
+	// ---------------------------------------------------------------- variants
+
+	private void checkDistinctOptions(List<VariantInput> variants) {
+		Set<String> seen = new HashSet<>();
+		for (VariantInput v : variants) {
+			String key = v.size().trim().toUpperCase(Locale.ROOT) + "|" + v.color().trim().toUpperCase(Locale.ROOT);
+			if (!seen.add(key)) {
+				throw ApiException.badRequest("DUPLICATE_VARIANT", "Size " + v.size() + " in " + v.color() + " is listed twice.")
+					.with("field", "variants");
+			}
+		}
+	}
+
+	/** Upserts variants: existing ones (by id) are updated, new ones created, missing ones deactivated. */
+	private void saveVariants(Long productId, String productSku, List<VariantInput> inputs) {
+		Map<Long, VariantRow> existing = variants(List.of(productId)).stream()
+			.collect(Collectors.toMap(VariantRow::id, v -> v));
+		Set<Long> kept = new HashSet<>();
+		int order = 0;
+		int next = existing.size() + 1;
+		for (VariantInput input : inputs) {
+			String size = input.size().trim();
+			String color = input.color().trim();
+			String family = Objects.requireNonNullElse(input.colorFamily(), "NEUTRAL");
+			boolean active = !Boolean.FALSE.equals(input.active());
+			if (input.id() != null) {
+				if (!existing.containsKey(input.id())) {
+					throw ApiException.badRequest("VARIANT_NOT_FOUND", "Variant " + input.id() + " does not belong to this product.")
+						.with("field", "variants");
+				}
+				jdbc.sql("""
+						UPDATE product_variants SET size = :size, color = :color, color_hex = :hex, color_family = :family,
+						       active = :active, sort_order = :order
+						WHERE id = :id
+						""").param("size", size).param("color", color).param("hex", blankToNull(input.colorHex()), Types.VARCHAR)
+					.param("family", family).param("active", active).param("order", order++).param("id", input.id())
+					.update();
+				kept.add(input.id());
+			}
+			else {
+				String variantSku = uniqueVariantSku(productSku, next++);
+				Long variantId = jdbc.sql("""
+						INSERT INTO product_variants (product_id, sku, size, color, color_hex, color_family, active, sort_order)
+						VALUES (:productId, :sku, :size, :color, :hex, :family, :active, :order)
+						RETURNING id
+						""").param("productId", productId).param("sku", variantSku).param("size", size).param("color", color)
+					.param("hex", blankToNull(input.colorHex()), Types.VARCHAR).param("family", family).param("active", active)
+					.param("order", order++)
+					.query(Long.class)
+					.single();
+				inventory.setStock(variantId, Objects.requireNonNullElse(input.stock(), 0));
+				kept.add(variantId);
+			}
+		}
+		existing.keySet().stream().filter(id -> !kept.contains(id)).forEach(id -> jdbc
+			.sql("UPDATE product_variants SET active = FALSE WHERE id = :id")
+			.param("id", id)
+			.update());
+	}
+
+	private String uniqueVariantSku(String productSku, int start) {
+		for (int n = start;; n++) {
+			String candidate = productSku + "-V" + n;
+			if (jdbc.sql("SELECT count(*) FROM product_variants WHERE sku = :sku").param("sku", candidate)
+				.query(Long.class).single() == 0) {
+				return candidate;
+			}
+		}
+	}
+
+	private List<VariantRow> variants(List<Long> productIds) {
+		if (productIds.isEmpty()) {
+			return List.of();
+		}
+		return jdbc.sql("""
+				SELECT id, product_id, sku, size, color, color_hex, color_family, active FROM product_variants
+				WHERE product_id IN (:ids) ORDER BY product_id, sort_order, id
+				""").param("ids", productIds).query(this::variantRow).list();
+	}
+
+	private List<VariantRow> variantsByIds(List<Long> ids) {
+		return jdbc.sql("""
+				SELECT id, product_id, sku, size, color, color_hex, color_family, active FROM product_variants WHERE id IN (:ids)
+				""").param("ids", ids).query(this::variantRow).list();
+	}
+
+	private VariantRow variantRow(ResultSet rs, int n) throws SQLException {
+		return new VariantRow(rs.getLong("id"), rs.getLong("product_id"), rs.getString("sku"), rs.getString("size"),
+				rs.getString("color"), rs.getString("color_hex"), rs.getString("color_family"), rs.getBoolean("active"));
+	}
+
+	// ---------------------------------------------------------------- brands, styles, occasions
+
+	private record Brand(Long id, String name) {
+	}
+
+	private Brand brand(String nameOrSlug) {
+		return jdbc.sql("SELECT id, name FROM brands WHERE active AND (lower(name) = lower(:v) OR slug = lower(:v))")
+			.param("v", nameOrSlug.trim())
+			.query((rs, n) -> new Brand(rs.getLong("id"), rs.getString("name")))
+			.optional()
+			.orElseThrow(() -> ApiException.badRequest("UNKNOWN_BRAND", "Choose an existing brand (add new brands first).")
+				.with("field", "brand"));
+	}
+
+	private List<Long> vocabularyIds(String table, List<String> slugs, String field) {
+		if (slugs == null || slugs.isEmpty()) {
+			return List.of();
+		}
+		List<String> distinct = slugs.stream().map(String::trim).distinct().toList();
+		Map<String, Long> found = new HashMap<>();
+		jdbc.sql("SELECT id, slug FROM " + table + " WHERE slug IN (:slugs)").param("slugs", distinct).query(rs -> {
+			found.put(rs.getString("slug"), rs.getLong("id"));
+		});
+		for (String slug : distinct) {
+			if (!found.containsKey(slug)) {
+				throw ApiException.badRequest("UNKNOWN_" + field.toUpperCase(Locale.ROOT).replaceAll("S$", ""),
+						"Unknown " + field.replaceAll("s$", "") + ": " + slug).with("field", field);
+			}
+		}
+		return distinct.stream().map(found::get).toList();
+	}
+
+	private void writeLinks(String table, String column, Long productId, List<Long> ids) {
+		ids.forEach(linkId -> jdbc.sql("INSERT INTO " + table + " (product_id, " + column + ") VALUES (:p, :l)")
+			.param("p", productId)
+			.param("l", linkId)
+			.update());
+	}
+
+	private List<String> slugs(String linkTable, String table, String column, Long productId) {
+		return jdbc.sql("SELECT t.slug FROM " + linkTable + " l JOIN " + table + " t ON t.id = l." + column
+				+ " WHERE l.product_id = :id ORDER BY t.sort_order").param("id", productId).query(String.class).list();
+	}
+
+	private static void checkCompareAt(BigDecimal price, BigDecimal compareAt) {
+		if (compareAt != null && compareAt.compareTo(price) <= 0) {
+			throw ApiException.badRequest("INVALID_DISCOUNT", "The original price must be higher than the current price.")
+				.with("field", "compareAtPrice");
+		}
 	}
 
 	// ---------------------------------------------------------------- attributes
@@ -314,9 +558,9 @@ public class ProductAdminService {
 				""")
 			.param("productId", productId)
 			.param("attributeId", definition.id())
-			.param("text", value instanceof String s ? s : null, java.sql.Types.VARCHAR)
-			.param("number", value instanceof BigDecimal b ? b : null, java.sql.Types.NUMERIC)
-			.param("bool", value instanceof Boolean b ? b : null, java.sql.Types.BOOLEAN)
+			.param("text", value instanceof String s ? s : null, Types.VARCHAR)
+			.param("number", value instanceof BigDecimal b ? b : null, Types.NUMERIC)
+			.param("bool", value instanceof Boolean b ? b : null, Types.BOOLEAN)
 			.update()));
 	}
 
@@ -358,22 +602,28 @@ public class ProductAdminService {
 	// ---------------------------------------------------------------- helpers
 
 	private Current current(Long id) {
-		return jdbc.sql("SELECT id, sku, name, price, status, category_id, version FROM products WHERE id = :id")
+		return jdbc.sql("""
+				SELECT id, sku, name, price, compare_at_price, status, category_id, gender, featured, new_arrival, trending,
+				       material, care, version
+				FROM products WHERE id = :id
+				""")
 			.param("id", id)
 			.query((rs, n) -> new Current(rs.getLong("id"), rs.getString("sku"), rs.getString("name"),
-					rs.getBigDecimal("price"), "ACTIVE".equals(rs.getString("status")), rs.getLong("category_id"),
+					rs.getBigDecimal("price"), rs.getBigDecimal("compare_at_price"), "ACTIVE".equals(rs.getString("status")),
+					rs.getLong("category_id"), rs.getString("gender"), rs.getBoolean("featured"),
+					rs.getBoolean("new_arrival"), rs.getBoolean("trending"), rs.getString("material"), rs.getString("care"),
 					rs.getLong("version")))
 			.optional()
 			.orElseThrow(ProductAdminService::notFound);
 	}
 
 	private Long leafCategoryId(String slug) {
-		Optional<Long> id = jdbc.sql("""
+		return jdbc.sql("""
 				SELECT c.id FROM categories c
-				WHERE c.slug = :slug AND NOT EXISTS (SELECT 1 FROM categories ch WHERE ch.parent_id = c.id)
-				""").param("slug", slug).query(Long.class).optional();
-		return id.orElseThrow(() -> ApiException.badRequest("UNKNOWN_CATEGORY",
-				"Products must belong to an existing category (not a department).").with("field", "categorySlug"));
+				WHERE c.slug = :slug AND c.active AND NOT EXISTS (SELECT 1 FROM categories ch WHERE ch.parent_id = c.id)
+				""").param("slug", slug).query(Long.class).optional()
+			.orElseThrow(() -> ApiException.badRequest("UNKNOWN_CATEGORY",
+					"Products must belong to an existing category (not a department).").with("field", "categorySlug"));
 	}
 
 	private String uniqueSlug(String name, String sku) {
@@ -392,6 +642,10 @@ public class ProductAdminService {
 			slug = "product";
 		}
 		return slug.length() > 120 ? slug.substring(0, 120).replaceAll("-$", "") : slug;
+	}
+
+	private static String blankToNull(String value) {
+		return value == null || value.isBlank() ? null : value.trim();
 	}
 
 	private List<String> tags(Long id) {
@@ -413,20 +667,28 @@ public class ProductAdminService {
 		return result;
 	}
 
-	private AdminProductRow row(java.sql.ResultSet rs, int n) throws java.sql.SQLException {
+	private AdminProductRow row(ResultSet rs, int n) throws SQLException {
 		return new AdminProductRow(rs.getLong("id"), rs.getString("sku"), rs.getString("slug"), rs.getString("name"),
-				rs.getString("brand"), rs.getBigDecimal("price"), "ACTIVE".equals(rs.getString("status")),
-				rs.getInt("quality_tier"), rs.getBigDecimal("rating_avg"), rs.getInt("rating_count"),
-				rs.getString("category_slug"), rs.getString("category_name"), 0,
-				rs.getTimestamp("updated_at").toInstant());
+				rs.getString("brand"), rs.getBigDecimal("price"), rs.getBigDecimal("compare_at_price"),
+				"ACTIVE".equals(rs.getString("status")), rs.getInt("quality_tier"), rs.getBigDecimal("rating_avg"),
+				rs.getInt("rating_count"), rs.getString("category_slug"), rs.getString("category_name"),
+				rs.getString("gender"), rs.getBoolean("featured"), 0, 0, rs.getTimestamp("updated_at").toInstant());
 	}
 
+	/** Totals over active variants, and the number of active variants. */
 	private List<AdminProductRow> withStock(List<AdminProductRow> rows) {
-		Map<Long, Integer> stock = inventory.availableQuantities(rows.stream().map(AdminProductRow::id).toList());
+		List<VariantRow> variants = variants(rows.stream().map(AdminProductRow::id).toList()).stream()
+			.filter(VariantRow::active)
+			.toList();
+		Map<Long, Integer> stock = inventory.availableQuantities(variants.stream().map(VariantRow::id).toList());
+		Map<Long, Integer> totals = variants.stream()
+			.collect(Collectors.groupingBy(VariantRow::productId, Collectors.summingInt(v -> stock.getOrDefault(v.id(), 0))));
+		Map<Long, Long> counts = variants.stream().collect(Collectors.groupingBy(VariantRow::productId, Collectors.counting()));
 		return rows.stream()
-			.map(r -> new AdminProductRow(r.id(), r.sku(), r.slug(), r.name(), r.brand(), r.price(), r.active(),
-					r.qualityTier(), r.ratingAvg(), r.ratingCount(), r.categorySlug(), r.categoryName(),
-					stock.getOrDefault(r.id(), 0), r.updatedAt()))
+			.map(r -> new AdminProductRow(r.id(), r.sku(), r.slug(), r.name(), r.brand(), r.price(), r.compareAtPrice(),
+					r.active(), r.qualityTier(), r.ratingAvg(), r.ratingCount(), r.categorySlug(), r.categoryName(),
+					r.gender(), r.featured(), totals.getOrDefault(r.id(), 0), counts.getOrDefault(r.id(), 0L).intValue(),
+					r.updatedAt()))
 			.toList();
 	}
 

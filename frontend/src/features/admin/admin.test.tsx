@@ -24,7 +24,7 @@ const homeOffice: AdminCategory = { ...monitors, id: 1, slug: 'home-office', nam
 
 const row: AdminProductRow = {
   id: 31, sku: 'MON-001', slug: 'viewmax-27', name: 'ViewMax 27', brand: 'Viewmax', price: 249, active: true, qualityTier: 2,
-  ratingAvg: 4.5, ratingCount: 120, categorySlug: 'monitors', categoryName: 'Monitors', stock: 3, updatedAt: '2026-10-17T10:00:00Z',
+  ratingAvg: 4.5, ratingCount: 120, categorySlug: 'monitors', categoryName: 'Monitors', stock: 3, variantCount: 1, compareAtPrice: null, gender: 'UNISEX', featured: false, updatedAt: '2026-10-17T10:00:00Z',
 };
 
 const product: AdminProduct = {
@@ -146,7 +146,7 @@ describe('admin area', () => {
     asAdmin();
     const order: Order = {
       id: 42, orderNumber: 'BMB-7K3Q9X2M', status: 'PAID', createdAt: '2026-10-17T12:00:00Z', cancelledAt: null,
-      items: [{ productId: 31, slug: 'viewmax-27', sku: 'MON-001', name: 'ViewMax 27', brand: 'Viewmax', unitPrice: 249, quantity: 1, lineTotal: 249 }],
+      items: [{ productId: 31, variantId: 301, size: null, color: null, slug: 'viewmax-27', sku: 'MON-001', name: 'ViewMax 27', brand: 'Viewmax', unitPrice: 249, quantity: 1, lineTotal: 249 }],
       subtotal: 249, shipping: 0, tax: 19.92, total: 268.92, currency: 'USD',
       shippingAddress: { fullName: 'Ada Lovelace', line1: '12 Analytical Way', line2: null, city: 'London', state: 'LDN', postalCode: 'N1 9GU', country: 'GB', phone: null },
       payment: { reference: 'SIM-1', method: 'SIMULATED_CARD', status: 'APPROVED', amount: 268.92 },

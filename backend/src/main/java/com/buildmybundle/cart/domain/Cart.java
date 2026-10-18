@@ -39,18 +39,19 @@ public class Cart {
 	protected Cart() {
 	}
 
-	public Optional<CartItem> item(Long productId) {
-		return items.stream().filter(i -> i.getProductId().equals(productId)).findFirst();
+	/** The line for a variant (one line per size and color). */
+	public Optional<CartItem> item(Long variantId) {
+		return items.stream().filter(i -> i.getVariantId().equals(variantId)).findFirst();
 	}
 
-	public void put(Long productId, int quantity) {
-		item(productId).ifPresentOrElse(i -> i.setQuantity(quantity),
-				() -> items.add(new CartItem(this, productId, quantity)));
+	public void put(Long productId, Long variantId, int quantity) {
+		item(variantId).ifPresentOrElse(i -> i.setQuantity(quantity),
+				() -> items.add(new CartItem(this, productId, variantId, quantity)));
 		touch();
 	}
 
-	public void remove(Long productId) {
-		items.removeIf(i -> i.getProductId().equals(productId));
+	public void remove(Long variantId) {
+		items.removeIf(i -> i.getVariantId().equals(variantId));
 		touch();
 	}
 

@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 /** Every admin endpoint requires the ADMIN role: anonymous visitors get 401, customers 403. */
 class AdminSecurityIntegrationTest extends IntegrationTest {
 
-	private static final List<String> ADMIN_READS = List.of("/api/v1/admin/products", "/api/v1/admin/products/1",
+	private static final List<String> ADMIN_READS = List.of("/api/v1/admin/products", "/api/v1/admin/brands",
 			"/api/v1/admin/categories", "/api/v1/admin/orders", "/api/v1/admin/compatibility-rules",
 			"/api/v1/admin/goal-templates", "/api/v1/admin/analytics/summary", "/api/v1/admin/audit-log");
 

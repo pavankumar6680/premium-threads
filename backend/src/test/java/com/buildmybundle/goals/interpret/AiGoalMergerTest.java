@@ -19,11 +19,11 @@ import org.junit.jupiter.api.Test;
 class AiGoalMergerTest {
 
 	private static final InterpreterVocabulary VOCABULARY = new InterpreterVocabulary(
-			List.of(new TemplateTerms("gaming-setup", "Gaming setup", List.of("gaming"),
-					List.of(new TemplateItem("desktops", true, true, 1), new TemplateItem("monitors", true, true, 1),
-							new TemplateItem("webcams", false, false, 1)),
-					List.of("gaming", "streaming"))),
-			new LinkedHashMap<>(VocabularyLoader.SYNONYMS), Set.of("Corvex", "Pixelon"), Set.of("gaming", "streaming", "compact"));
+			List.of(new TemplateTerms("streetwear-men", "Streetwear (men)", List.of("streetwear", "guy", "men"),
+					List.of(new TemplateItem("men-hoodies", true, true, 1), new TemplateItem("men-jeans", true, true, 1),
+							new TemplateItem("caps", false, false, 1)),
+					List.of("streetwear", "casual"))),
+			new LinkedHashMap<>(VocabularyLoader.SYNONYMS), Set.of("Nike", "Puma"), Set.of("streetwear", "casual", "formal"));
 
 	private static GoalAnalysis rules(String text) {
 		return RuleBasedGoalInterpreter.interpret(text, VOCABULARY);
@@ -31,10 +31,10 @@ class AiGoalMergerTest {
 
 	@Test
 	void parsesJsonEvenWhenWrappedInProse() {
-		assertThat(AiGoalMerger.parse("Sure! ```json\n{\"templateSlug\":\"gaming-setup\",\"budget\":1500}\n```"))
+		assertThat(AiGoalMerger.parse("Sure! ```json\n{\"templateSlug\":\"streetwear-men\",\"budget\":150}\n```"))
 			.hasValueSatisfying(g -> {
-				assertThat(g.templateSlug()).isEqualTo("gaming-setup");
-				assertThat(g.budget()).isEqualByComparingTo("1500");
+				assertThat(g.templateSlug()).isEqualTo("streetwear-men");
+				assertThat(g.budget()).isEqualByComparingTo("150");
 			});
 		assertThat(AiGoalMerger.parse("I cannot help with that.")).isEmpty();
 		assertThat(AiGoalMerger.parse("{not json}")).isEmpty();
@@ -42,73 +42,73 @@ class AiGoalMergerTest {
 
 	@Test
 	void ignoresEverythingTheShopperDidNotSay() {
-		String text = "I stream while gaming and need a new setup, budget 1500";
+		String text = "Streetwear for a guy, I need a new hoodie, budget 150";
 		AiGoal ai = AiGoalMerger.parse("""
 				{"templateSlug":"space-station","quality":"PREMIUM",
-				 "categories":[{"slug":"rgb-fans","kind":"REQUIRED"},{"slug":"webcams","kind":"REQUIRED"},
-				               {"slug":"desks","kind":"OWNED"}],
-				 "usageTags":["streaming","teleportation"],"preferredBrands":["corvex","Razer"],
-				 "clarifyingQuestions":["Do you need a microphone?"]}""").orElseThrow();
+				 "categories":[{"slug":"rgb-fans","kind":"REQUIRED"},{"slug":"caps","kind":"REQUIRED"},
+				               {"slug":"belts","kind":"OWNED"}],
+				 "usageTags":["streetwear","teleportation"],"preferredBrands":["nike","Supreme"],
+				 "clarifyingQuestions":["Do you need sneakers?"]}""").orElseThrow();
 
 		GoalAnalysis merged = AiGoalMerger.merge(rules(text), ai, text, VOCABULARY);
 
 		assertThat(merged.source()).isEqualTo("AI");
-		assertThat(merged.templateSlug()).isEqualTo("gaming-setup"); // the rules' match wins
+		assertThat(merged.templateSlug()).isEqualTo("streetwear-men"); // the rules' match wins
 		assertThat(merged.items()).extracting(GoalAnalysis.Item::categorySlug)
-			.doesNotContain("rgb-fans", "webcams", "desks"); // valid store categories, but never mentioned
-		assertThat(merged.usageTags()).contains("streaming").doesNotContain("teleportation");
-		assertThat(merged.preferredBrands()).isEmpty(); // Corvex exists, but the shopper did not ask for it
+			.doesNotContain("rgb-fans", "caps", "belts"); // valid store categories, but never mentioned
+		assertThat(merged.usageTags()).contains("streetwear").doesNotContain("teleportation");
+		assertThat(merged.preferredBrands()).isEmpty(); // Nike exists, but the shopper did not ask for it
 		assertThat(merged.quality()).isEqualTo(Quality.BALANCED);
 		assertThat(merged.clarifications()).isEmpty(); // nothing essential is missing
 	}
 
 	@Test
 	void letsTheModelRecogniseOwnedItemsTheRulesMissed() {
-		String text = "Gaming rig please. My old monitor still works fine, 2k to spend";
+		String text = "Streetwear look for a guy, budget 150. My old jeans still fit fine";
 		assertThat(rules(text).items()).extracting(GoalAnalysis.Item::kind).doesNotContain(RequirementKind.OWNED);
 		AiGoal ai = AiGoalMerger.parse("""
-				{"categories":[{"slug":"monitors","kind":"OWNED"}]}""").orElseThrow();
+				{"categories":[{"slug":"men-jeans","kind":"OWNED"}]}""").orElseThrow();
 
 		GoalAnalysis merged = AiGoalMerger.merge(rules(text), ai, text, VOCABULARY);
 
 		assertThat(merged.items()).extracting(GoalAnalysis.Item::categorySlug, GoalAnalysis.Item::kind)
-			.contains(tuple("monitors", RequirementKind.OWNED), tuple("desktops", RequirementKind.REQUIRED));
+			.contains(tuple("men-jeans", RequirementKind.OWNED), tuple("men-hoodies", RequirementKind.REQUIRED));
 	}
 
 	@Test
 	void neverReadsRequestedProductsAsOwned() {
-		String text = "Home office for 1200. I need a desk, a chair and a monitor. My keyboard is fine";
+		String text = "Streetwear for a guy, budget 150. I need a hoodie, jeans and a cap. My belt is fine";
 		AiGoal ai = AiGoalMerger.parse("""
-				{"categories":[{"slug":"desks","kind":"OWNED"},{"slug":"monitors","kind":"OWNED"},
-				               {"slug":"keyboards","kind":"OWNED"}]}""").orElseThrow();
+				{"categories":[{"slug":"men-hoodies","kind":"OWNED"},{"slug":"men-jeans","kind":"OWNED"},
+				               {"slug":"belts","kind":"OWNED"}]}""").orElseThrow();
 
 		GoalAnalysis merged = AiGoalMerger.merge(rules(text), ai, text, VOCABULARY);
 
 		assertThat(merged.items()).extracting(GoalAnalysis.Item::categorySlug, GoalAnalysis.Item::kind)
-			.contains(tuple("keyboards", RequirementKind.OWNED))
-			.doesNotContain(tuple("desks", RequirementKind.OWNED), tuple("monitors", RequirementKind.OWNED));
+			.contains(tuple("belts", RequirementKind.OWNED))
+			.doesNotContain(tuple("men-hoodies", RequirementKind.OWNED), tuple("men-jeans", RequirementKind.OWNED));
 	}
 
 	@Test
 	void trustsAModelBudgetOnlyWhenTheNumberIsInTheText() {
-		assertThat(AiGoalMerger.groundedBudget(new BigDecimal("1500"), "I can spend around one thousand five hundred, 1,500 max")).isEqualByComparingTo("1500");
+		assertThat(AiGoalMerger.groundedBudget(new BigDecimal("150"), "I can spend around one hundred and fifty, 150 max")).isEqualByComparingTo("150");
 		assertThat(AiGoalMerger.groundedBudget(new BigDecimal("2000"), "about 2 thousand")).isEqualByComparingTo("2000");
-		assertThat(AiGoalMerger.groundedBudget(new BigDecimal("2500"), "a 2.5k budget")).isEqualByComparingTo("2500");
-		assertThat(AiGoalMerger.groundedBudget(new BigDecimal("1200"), "a decent gaming PC")).isNull(); // invented
-		assertThat(AiGoalMerger.groundedBudget(new BigDecimal("1200"), "about 11200")).isNull(); // only a substring
+		assertThat(AiGoalMerger.groundedBudget(new BigDecimal("1500"), "a 1.5k budget")).isEqualByComparingTo("1500");
+		assertThat(AiGoalMerger.groundedBudget(new BigDecimal("200"), "a nice party outfit")).isNull(); // invented
+		assertThat(AiGoalMerger.groundedBudget(new BigDecimal("200"), "about 1200")).isNull(); // only a substring
 	}
 
 	@Test
 	void usesTheModelsTemplateAndDefaultsWhenTheRulesFoundNone() {
-		String text = "I want to play the latest shooters at high frame rates";
+		String text = "I want to look like a skater at the skate park";
 		assertThat(rules(text).templateSlug()).isNull();
 		AiGoal ai = AiGoalMerger.parse("""
-				{"templateSlug":"gaming-setup","clarifyingQuestions":["Do you already have a monitor?","x"]}""").orElseThrow();
+				{"templateSlug":"streetwear-men","clarifyingQuestions":["Do you already have jeans?","x"]}""").orElseThrow();
 
 		GoalAnalysis merged = AiGoalMerger.merge(rules(text), ai, text, VOCABULARY);
 
-		assertThat(merged.title()).isEqualTo("Gaming setup");
-		assertThat(merged.items()).extracting(GoalAnalysis.Item::categorySlug).containsExactly("desktops", "monitors");
-		assertThat(merged.clarifications()).containsExactly("What is your total budget?", "Do you already have a monitor?");
+		assertThat(merged.title()).isEqualTo("Streetwear (men)");
+		assertThat(merged.items()).extracting(GoalAnalysis.Item::categorySlug).containsExactly("men-hoodies", "men-jeans");
+		assertThat(merged.clarifications()).containsExactly("What is your total budget?", "Do you already have jeans?");
 	}
 }

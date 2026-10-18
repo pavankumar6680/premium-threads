@@ -47,38 +47,38 @@ class AiIntegrationTest extends IntegrationTest {
 	@Test
 	void mergesOnlyTheModelsGroundedReadingWithTheRules() throws Exception {
 		model.responder = (system, user) -> Optional.of("""
-				{"templateSlug":"gaming-setup","budget":2000,"quality":"PREMIUM",
-				 "categories":[{"slug":"monitors","kind":"OWNED"},{"slug":"rgb-fans","kind":"REQUIRED"},
-				               {"slug":"webcams","kind":"REQUIRED"},{"slug":"keyboards","kind":"OWNED"}],
-				 "usageTags":["streaming"],"preferredBrands":["corvex"],
-				 "clarifyingQuestions":["Do you also need a desk?"]}""");
+				{"templateSlug":"festive-men","budget":200,"quality":"PREMIUM",
+				 "categories":[{"slug":"watches","kind":"OWNED"},{"slug":"rgb-fans","kind":"REQUIRED"},
+				               {"slug":"sunglasses","kind":"REQUIRED"},{"slug":"wallets","kind":"OWNED"}],
+				 "usageTags":["formal"],"preferredBrands":["guess"],
+				 "clarifyingQuestions":["Do you also need shoes?"]}""");
 
 		new BrowserSession(mockMvc)
 			.postJson("/api/v1/goals/analyze",
-					"{\"text\":\"Something to play competitive shooters on, about 2000 dollars. My old monitor still works.\"}")
+					"{\"text\":\"Something for my cousin's mehndi for him, about 200 dollars. My old watch still works.\"}")
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.source").value("AI"))
-			.andExpect(jsonPath("$.templateSlug").value("gaming-setup")) // the rules found no template
-			.andExpect(jsonPath("$.budget").value(2000.0))
+			.andExpect(jsonPath("$.templateSlug").value("festive-men")) // the rules found no occasion
+			.andExpect(jsonPath("$.budget").value(200.0))
 			.andExpect(jsonPath("$.quality").value("BALANCED")) // the shopper never asked for premium
-			.andExpect(jsonPath("$.items[?(@.categorySlug == 'monitors')].kind").value("OWNED"))
-			.andExpect(jsonPath("$.items[?(@.categorySlug == 'keyboards')].kind",
+			.andExpect(jsonPath("$.items[?(@.categorySlug == 'watches')].kind").value("OWNED"))
+			.andExpect(jsonPath("$.items[?(@.categorySlug == 'wallets')].kind",
 					org.hamcrest.Matchers.not(hasItem("OWNED")))) // never mentioned
 			.andExpect(jsonPath("$.items[*].categorySlug", org.hamcrest.Matchers.not(hasItem("rgb-fans"))))
 			.andExpect(jsonPath("$.preferredBrands.length()").value(0))
-			.andExpect(jsonPath("$.clarifications", org.hamcrest.Matchers.not(hasItem("Do you also need a desk?"))));
+			.andExpect(jsonPath("$.clarifications", org.hamcrest.Matchers.not(hasItem("Do you also need shoes?"))));
 		// the model is told the store's real vocabulary
-		assertThat(model.prompts.getFirst()).contains("gaming-setup", "monitor-arms");
+		assertThat(model.prompts.getFirst()).contains("festive-men", "women-dresses").doesNotContain("monitor");
 	}
 
 	@Test
 	void fallsBackToTheRulesWhenTheModelGivesNoUsableAnswer() throws Exception {
 		model.responder = (system, user) -> Optional.of("Sorry, I can't do that.");
 
-		new BrowserSession(mockMvc).postJson("/api/v1/goals/analyze", "{\"text\":\"home office for $1,200 with a desk\"}")
+		new BrowserSession(mockMvc).postJson("/api/v1/goals/analyze", "{\"text\":\"office outfit for men, $300, with a shirt\"}")
 			.andExpect(jsonPath("$.source").value("RULES"))
-			.andExpect(jsonPath("$.templateSlug").value("home-office"))
-			.andExpect(jsonPath("$.budget").value(1200.0));
+			.andExpect(jsonPath("$.templateSlug").value("office-men"))
+			.andExpect(jsonPath("$.budget").value(300.0));
 	}
 
 	@Test
@@ -119,8 +119,8 @@ class AiIntegrationTest extends IntegrationTest {
 	private String recommendationRun() throws Exception {
 		BrowserSession browser = new BrowserSession(mockMvc);
 		String goal = browser.postJson("/api/v1/goals", """
-				{"templateSlug":"home-office","budget":1200,"quality":"BALANCED",
-				 "items":[{"categorySlug":"desks","kind":"REQUIRED"},{"categorySlug":"chairs","kind":"REQUIRED"}]}""")
+				{"templateSlug":"weekend-casual-men","budget":300,"quality":"BALANCED",
+				 "items":[{"categorySlug":"men-tshirts","kind":"REQUIRED"},{"categorySlug":"men-jeans","kind":"REQUIRED"}]}""")
 			.andReturn().getResponse().getContentAsString();
 		return browser.post("/api/v1/goals/" + JsonPath.read(goal, "$.id") + "/recommendations")
 			.andExpect(status().isCreated())

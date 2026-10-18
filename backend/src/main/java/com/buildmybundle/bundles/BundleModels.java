@@ -69,7 +69,7 @@ public final class BundleModels {
 			List<Alternative> products) {
 	}
 
-	public record PurchaseLine(Long productId, int quantity) {
+	public record PurchaseLine(Long productId, Long variantId, int quantity) {
 	}
 
 	/** What the optimizer needs to re-optimize a customer's bundle. */

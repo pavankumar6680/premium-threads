@@ -8,7 +8,7 @@ import { useToast } from '../../components/ui/Toast';
 import { ApiError } from '../../lib/api';
 import { formatMoney, pluralize } from '../../lib/format';
 import { ProductImage } from '../catalog/components/ProductImage';
-import { useCart, useRemoveCartItem, useUpdateCartItem, type CartItem } from './api';
+import { useCart, useRemoveCartItem, useUpdateCartItem, variantLabel, type CartItem } from './api';
 import { TotalsCard } from './TotalsCard';
 
 const MAX_PER_LINE = 99;
@@ -46,7 +46,7 @@ export function CartPage() {
           )}
           <ul className="divide-y divide-slate-200 rounded-2xl border border-slate-200 bg-white">
             {cart.items.map((item) => (
-              <CartLine key={item.productId} item={item} />
+              <CartLine key={item.variantId} item={item} />
             ))}
           </ul>
           <Link to="/shop" className="mt-4 inline-block text-sm font-semibold text-brand-700 hover:underline">
@@ -84,6 +84,12 @@ function CartLine({ item }: { item: CartItem }) {
         <div className="min-w-0">
           <p className="text-xs uppercase tracking-wide text-slate-500">{item.brand}</p>
           <Link to={`/products/${item.slug}`} className="font-semibold hover:text-brand-700">{item.name}</Link>
+          {variantLabel(item.size, item.color) && (
+            <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-700">
+              {item.colorHex && <span className="size-3 rounded-full ring-1 ring-slate-300" style={{ backgroundColor: item.colorHex }} aria-hidden="true" />}
+              {variantLabel(item.size, item.color)}
+            </p>
+          )}
           <p className="mt-0.5 text-sm text-slate-600">{formatMoney(item.unitPrice)} each</p>
           {!item.available && (
             <p className="mt-1 flex items-center gap-1 text-sm font-medium text-red-600">
@@ -100,11 +106,11 @@ function CartLine({ item }: { item: CartItem }) {
               value={item.quantity}
               max={Math.max(item.quantity, Math.min(item.availableQuantity, MAX_PER_LINE))}
               disabled={busy}
-              onChange={(quantity) => update.mutate({ productId: item.productId, quantity }, { onError })}
+              onChange={(quantity) => update.mutate({ variantId: item.variantId, quantity }, { onError })}
             />
             <button
               type="button"
-              onClick={() => remove.mutate(item.productId, { onError })}
+              onClick={() => remove.mutate(item.variantId, { onError })}
               disabled={busy}
               className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
               aria-label={`Remove ${item.name}`}

@@ -1,4 +1,5 @@
 package com.buildmybundle.inventory;
 
-public record StockShortage(Long productId, int requested, int available) {
+/** A variant that cannot supply the requested quantity. */
+public record StockShortage(Long variantId, int requested, int available) {
 }

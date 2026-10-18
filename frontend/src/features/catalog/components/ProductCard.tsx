@@ -41,7 +41,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
             variant={purchasable ? 'primary' : 'secondary'}
             disabled={!purchasable}
             isLoading={isPending && pendingProductId === product.id}
-            onClick={() => addToCart(product.id, 1, product.name)}
+            onClick={() => addToCart(product.id, 1, product.name, undefined, product.slug)}
             aria-label={`Add ${product.name} to cart`}
           >
             <ShoppingCart className="size-4" aria-hidden="true" />

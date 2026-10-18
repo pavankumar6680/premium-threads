@@ -6,11 +6,15 @@ import { useCurrentUser } from '../auth/hooks';
 
 export type CartItem = {
   productId: number;
+  variantId: number;
   sku: string;
   slug: string;
   name: string;
   brand: string;
   categorySlug: string;
+  size: string;
+  color: string;
+  colorHex: string | null;
   unitPrice: number;
   quantity: number;
   lineTotal: number;
@@ -48,14 +52,21 @@ function useCartMutation<TVars>(mutationFn: (vars: TVars) => Promise<Cart>) {
   });
 }
 
+/** Cart lines are identified by variant (size and color). */
 export function useUpdateCartItem() {
-  return useCartMutation(({ productId, quantity }: { productId: number; quantity: number }) =>
-    api.put<Cart>(`/cart/items/${productId}`, { quantity }),
+  return useCartMutation(({ variantId, quantity }: { variantId: number; quantity: number }) =>
+    api.put<Cart>(`/cart/items/${variantId}`, { quantity }),
   );
 }
 
 export function useRemoveCartItem() {
-  return useCartMutation((productId: number) => api.delete<Cart>(`/cart/items/${productId}`));
+  return useCartMutation((variantId: number) => api.delete<Cart>(`/cart/items/${variantId}`));
+}
+
+/** "One size" and "Standard" are placeholders of single-option products, not worth showing. */
+export function variantLabel(size: string | null | undefined, color: string | null | undefined): string {
+  const parts = [color && color !== 'Standard' ? color : null, size && size !== 'One size' ? size : null].filter(Boolean);
+  return parts.join(' · ');
 }
 
 /**
@@ -67,20 +78,32 @@ export function useAddToCart() {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
-  const mutation = useCartMutation(({ productId, quantity }: { productId: number; quantity: number }) =>
-    api.post<Cart>('/cart/items', { productId, quantity }),
+  const mutation = useCartMutation(
+    ({ productId, variantId, quantity }: { productId: number; variantId?: number; quantity: number }) =>
+      api.post<Cart>('/cart/items', { productId, variantId, quantity }),
   );
 
-  const addToCart = (productId: number, quantity = 1, name?: string) => {
+  /**
+   * Adds a variant, or a product sold in a single option. For a product with sizes and no variant chosen,
+   * the shopper is taken to the product page ({@code slug}) to pick one.
+   */
+  const addToCart = (productId: number, quantity = 1, name?: string, variantId?: number, slug?: string) => {
     if (!user) {
       navigate(`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`);
       return;
     }
     mutation.mutate(
-      { productId, quantity },
+      { productId, variantId, quantity },
       {
         onSuccess: () => toast.show(name ? `Added ${name} to your cart` : 'Added to your cart'),
-        onError: (error) => toast.show(error instanceof ApiError ? error.message : 'Could not add to cart', 'error'),
+        onError: (error) => {
+          if (error instanceof ApiError && error.code === 'VARIANT_REQUIRED' && slug) {
+            toast.show('Choose a size and color first');
+            navigate(`/products/${slug}`);
+            return;
+          }
+          toast.show(error instanceof ApiError ? error.message : 'Could not add to cart', 'error');
+        },
       },
     );
   };

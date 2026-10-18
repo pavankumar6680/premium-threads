@@ -28,8 +28,18 @@ public class OrderItem {
 	@Column(name = "product_id", nullable = false, updatable = false)
 	private Long productId;
 
+	/** The purchased size and color; null only for order lines older than product variants. */
+	@Column(name = "variant_id", updatable = false)
+	private Long variantId;
+
 	@Column(nullable = false, length = 40, updatable = false)
 	private String sku;
+
+	@Column(length = 12, updatable = false)
+	private String size;
+
+	@Column(length = 40, updatable = false)
+	private String color;
 
 	@Column(name = "product_name", nullable = false, length = 160, updatable = false)
 	private String productName;
@@ -49,11 +59,14 @@ public class OrderItem {
 	protected OrderItem() {
 	}
 
-	OrderItem(CustomerOrder order, Long productId, String sku, String productName, String brand,
-			BigDecimal unitPrice, int quantity, BigDecimal lineTotal) {
+	OrderItem(CustomerOrder order, Long productId, Long variantId, String sku, String size, String color,
+			String productName, String brand, BigDecimal unitPrice, int quantity, BigDecimal lineTotal) {
 		this.order = order;
 		this.productId = productId;
+		this.variantId = variantId;
 		this.sku = sku;
+		this.size = size;
+		this.color = color;
 		this.productName = productName;
 		this.brand = brand;
 		this.unitPrice = unitPrice;
@@ -63,6 +76,18 @@ public class OrderItem {
 
 	public Long getProductId() {
 		return productId;
+	}
+
+	public Long getVariantId() {
+		return variantId;
+	}
+
+	public String getSize() {
+		return size;
+	}
+
+	public String getColor() {
+		return color;
 	}
 
 	public String getSku() {

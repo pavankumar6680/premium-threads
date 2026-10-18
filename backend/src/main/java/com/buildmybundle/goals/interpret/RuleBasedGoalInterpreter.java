@@ -65,17 +65,14 @@ public final class RuleBasedGoalInterpreter {
 	private static final Map<String, String> USAGE_PHRASES = new LinkedHashMap<>();
 
 	static {
-		phrases("ergonomic", "ergonomic", "ergonomics", "posture", "back pain", "comfortable", "comfort");
-		phrases("streaming", "video call", "video calls", "zoom", "meetings", "stream", "streaming", "streamer",
-				"twitch", "youtube");
-		phrases("compact", "small", "compact", "tiny", "apartment", "dorm", "limited space");
-		phrases("wireless", "wireless", "cable free", "bluetooth");
-		phrases("beginner", "beginner", "starter", "getting started", "new to", "first");
-		phrases("quiet", "quiet", "silent");
-		phrases("portable", "portable", "travel", "on the go", "on location");
-		phrases("pro", "professional grade", "broadcast quality", "pro level");
-		phrases("gaming", "gaming", "gamer", "fps", "esports");
-		phrases("study", "study", "studying", "homework");
+		phrases("casual", "casual", "relaxed", "laid back", "laid-back", "everyday", "easygoing", "comfortable", "comfy");
+		phrases("streetwear", "streetwear", "street style", "street", "urban", "oversized", "sporty", "athleisure",
+				"hype");
+		phrases("formal", "formal", "smart", "sharp", "tailored", "elegant", "classy", "polished", "business",
+				"professional");
+		phrases("minimalist", "minimalist", "minimal", "clean", "simple", "neutral", "understated", "timeless");
+		phrases("party-wear", "party wear", "partywear", "glam", "glamorous", "statement", "sparkly", "night out",
+				"stylish", "bold");
 	}
 
 	private static void phrases(String tag, String... values) {
@@ -122,25 +119,40 @@ public final class RuleBasedGoalInterpreter {
 		return text.toLowerCase(Locale.ROOT).replace('-', ' ').replace('’', '\'').replaceAll("\\s+", " ").trim();
 	}
 
+	/**
+	 * Wardrobe words ("him", "women"...) tell men's and women's templates apart but never choose a template on
+	 * their own: an occasion keyword must match, otherwise the goal stays custom.
+	 */
+	static final Set<String> WARDROBE_WORDS = Set.of("men", "man", "mens", "guy", "him", "boyfriend", "husband",
+			"women", "woman", "womens", "girl", "her", "girlfriend", "wife", "ladies");
+
 	private static Optional<TemplateTerms> matchTemplate(String text, InterpreterVocabulary vocabulary,
 			List<String> matched) {
 		TemplateTerms best = null;
 		int bestScore = 0;
+		int bestWardrobe = 0;
 		List<String> bestTerms = List.of();
 		for (TemplateTerms template : vocabulary.templates()) {
 			List<String> terms = new ArrayList<>();
 			int score = 0;
+			int wardrobe = 0;
 			for (String keyword : template.keywords()) {
 				int occurrences = countOccurrences(text, normalize(keyword));
 				if (occurrences > 0) {
-					// multi-word keywords are more specific than single words
-					score += occurrences * keyword.split(" ").length;
+					if (WARDROBE_WORDS.contains(normalize(keyword))) {
+						wardrobe += occurrences;
+					}
+					else {
+						// multi-word keywords are more specific than single words
+						score += occurrences * keyword.split(" ").length;
+					}
 					terms.add(keyword);
 				}
 			}
-			if (score > bestScore) {
+			if (score > 0 && (score > bestScore || (score == bestScore && wardrobe > bestWardrobe))) {
 				best = template;
 				bestScore = score;
+				bestWardrobe = wardrobe;
 				bestTerms = terms;
 			}
 		}

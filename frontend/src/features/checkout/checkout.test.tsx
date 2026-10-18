@@ -9,7 +9,7 @@ import { location, renderApp } from '../../test/renderApp';
 import { apiPath, server } from '../../test/server';
 
 const line: CartItem = {
-  productId: 10, sku: 'DSK-003', slug: 'ergolift-flexistand-desk-120', name: 'Ergolift FlexiStand Desk 120', brand: 'Ergolift',
+  productId: 10, variantId: 10, size: 'One size', color: 'Standard', colorHex: null, sku: 'DSK-003', slug: 'ergolift-flexistand-desk-120', name: 'Ergolift FlexiStand Desk 120', brand: 'Ergolift',
   categorySlug: 'desks', unitPrice: 329, quantity: 1, lineTotal: 329, availableQuantity: 30, available: true,
 };
 
@@ -26,7 +26,7 @@ const home: Address = {
 
 const order: Order = {
   id: 42, orderNumber: 'BMB-7K3Q9X2M', status: 'PAID', createdAt: '2026-10-17T12:00:00Z', cancelledAt: null,
-  items: [{ productId: 10, slug: line.slug, sku: line.sku, name: line.name, brand: line.brand, unitPrice: 329, quantity: 1, lineTotal: 329 }],
+  items: [{ productId: 10, variantId: 10, size: null, color: null, slug: line.slug, sku: line.sku, name: line.name, brand: line.brand, unitPrice: 329, quantity: 1, lineTotal: 329 }],
   subtotal: 329, shipping: 0, tax: 26.32, total: 355.32, currency: 'USD',
   shippingAddress: { fullName: home.fullName, line1: home.line1, line2: null, city: home.city, state: home.state, postalCode: home.postalCode, country: home.country, phone: null },
   payment: { reference: 'SIM-ABC123', method: 'SIMULATED_CARD', status: 'APPROVED', amount: 355.32 },

@@ -25,83 +25,84 @@ class RuleBasedGoalInterpreterTest {
 	}
 
 	@Test
-	void interpretsTheReferenceHomeOfficeRequest() {
-		GoalAnalysis analysis = interpret("I want to set up a professional work-from-home office with a budget of "
-				+ "$1,200. I need a desk, ergonomic chair, monitor, keyboard, mouse, and lighting.");
+	void interpretsTheReferenceOutfitRequest() {
+		GoalAnalysis analysis = interpret("I want a stylish casual outfit for a weekend party under $200 for him. "
+				+ "I need a shirt, jeans and a watch.");
 
-		assertThat(analysis.templateSlug()).isEqualTo("home-office");
-		assertThat(analysis.title()).isEqualTo("Professional home office");
-		assertThat(analysis.budget()).isEqualByComparingTo("1200.00");
+		assertThat(analysis.templateSlug()).isEqualTo("weekend-casual-men");
+		assertThat(analysis.title()).isEqualTo("Weekend casual (men)");
+		assertThat(analysis.budget()).isEqualByComparingTo("200.00");
 		assertThat(analysis.quality()).isEqualTo(Quality.BALANCED);
 		assertThat(analysis.items()).extracting(GoalAnalysis.Item::categorySlug, GoalAnalysis.Item::kind)
-			.containsExactly(tuple("desks", RequirementKind.REQUIRED), tuple("chairs", RequirementKind.REQUIRED),
-					tuple("monitors", RequirementKind.REQUIRED), tuple("keyboards", RequirementKind.REQUIRED),
-					tuple("mice", RequirementKind.REQUIRED),
-					// "lighting" resolves to the template's desk lamps, and is upgraded from optional to required
-					tuple("desk-lamps", RequirementKind.REQUIRED), tuple("webcams", RequirementKind.OPTIONAL));
-		assertThat(analysis.usageTags()).containsExactly("ergonomic");
+			.contains(tuple("men-shirts", RequirementKind.REQUIRED), tuple("men-jeans", RequirementKind.REQUIRED),
+					// the template's optional watch is upgraded because it was asked for
+					tuple("watches", RequirementKind.REQUIRED), tuple("men-tshirts", RequirementKind.REQUIRED))
+			.noneMatch(t -> t.toList().getFirst().toString().startsWith("women-"));
+		assertThat(analysis.usageTags()).contains("casual", "party-wear");
 		assertThat(analysis.clarifications()).isEmpty();
 		assertThat(analysis.source()).isEqualTo("RULES");
 	}
 
 	@Test
-	void recognisesEquipmentTheCustomerAlreadyOwns() {
+	void recognisesPiecesTheCustomerAlreadyOwns() {
 		GoalAnalysis analysis = interpret(
-				"I already have a monitor and keyboard, but I need a desk and chair for my home office. Budget around 1.5k");
+				"I already have jeans and a jacket, but I need a shirt for the office. Budget around 150, for men");
 
+		assertThat(analysis.templateSlug()).isEqualTo("office-men");
 		assertThat(analysis.items()).extracting(GoalAnalysis.Item::categorySlug, GoalAnalysis.Item::kind)
-			.contains(tuple("monitors", RequirementKind.OWNED), tuple("keyboards", RequirementKind.OWNED),
-					tuple("desks", RequirementKind.REQUIRED), tuple("chairs", RequirementKind.REQUIRED));
-		assertThat(analysis.budget()).isEqualByComparingTo("1500.00");
+			.contains(tuple("men-jeans", RequirementKind.OWNED), tuple("men-jackets", RequirementKind.OWNED),
+					tuple("men-shirts", RequirementKind.REQUIRED));
+		assertThat(analysis.budget()).isEqualByComparingTo("150.00");
 	}
 
 	@Test
 	void recognisesHandMeDownsAsOwned() {
-		assertThat(interpret("Got my brother's old monitor, need a gaming PC").items())
+		assertThat(interpret("Got my brother's old watch, need an office shirt for him").items())
 			.extracting(GoalAnalysis.Item::categorySlug, GoalAnalysis.Item::kind)
-			.contains(tuple("monitors", RequirementKind.OWNED));
-		assertThat(interpret("My dad gave me his desk, I need a chair").items())
+			.contains(tuple("watches", RequirementKind.OWNED), tuple("men-shirts", RequirementKind.REQUIRED));
+		assertThat(interpret("My mom gave me her handbag, I need a party dress").items())
 			.extracting(GoalAnalysis.Item::categorySlug, GoalAnalysis.Item::kind)
-			.contains(tuple("desks", RequirementKind.OWNED), tuple("chairs", RequirementKind.REQUIRED));
+			.contains(tuple("handbags", RequirementKind.OWNED), tuple("women-dresses", RequirementKind.REQUIRED));
 	}
 
 	@Test
-	void resolvesAmbiguousWordsInFavourOfTheMatchedTemplate() {
-		GoalAnalysis analysis = interpret("Photography setup with studio lighting, max $3k");
+	void garmentWordsFollowTheWardrobeOfTheMatchedTemplate() {
+		GoalAnalysis analysis = interpret("Office look for women: a blazer and trousers, max $300");
 
-		assertThat(analysis.templateSlug()).isEqualTo("photo-studio");
-		assertThat(analysis.budget()).isEqualByComparingTo("3000.00");
-		assertThat(analysis.items()).extracting(GoalAnalysis.Item::categorySlug).contains("studio-lighting")
-			.doesNotContain("desk-lamps", "smart-lighting");
+		assertThat(analysis.templateSlug()).isEqualTo("office-women");
+		assertThat(analysis.budget()).isEqualByComparingTo("300.00");
+		assertThat(analysis.items()).extracting(GoalAnalysis.Item::categorySlug)
+			.contains("women-jackets", "women-trousers")
+			.doesNotContain("men-jackets", "men-trousers");
 	}
 
 	@Test
-	void doesNotMistakeResolutionsForBudgets() {
-		GoalAnalysis analysis = interpret("A 4k monitor for gaming");
+	void asksForTheBudgetWhenItIsMissing() {
+		GoalAnalysis analysis = interpret("A party dress for her, size 8");
 
-		assertThat(analysis.templateSlug()).isEqualTo("gaming-setup");
-		assertThat(analysis.budget()).isNull();
+		assertThat(analysis.templateSlug()).isEqualTo("party-women");
+		assertThat(analysis.budget()).isNull(); // a size is not a budget
 		assertThat(analysis.clarifications()).containsExactly("What is your total budget?");
 	}
 
 	@Test
 	void buildsACustomGoalWhenNoTemplateMatches() {
-		GoalAnalysis analysis = interpret("Something cheap: a desk and two chairs, 300 dollars");
+		GoalAnalysis analysis = interpret("Something cheap: a scarf and two caps, 60 dollars");
 
 		assertThat(analysis.templateSlug()).isNull();
 		assertThat(analysis.title()).isEqualTo("Custom bundle");
 		assertThat(analysis.quality()).isEqualTo(Quality.BUDGET);
-		assertThat(analysis.budget()).isEqualByComparingTo("300.00");
-		assertThat(analysis.items()).extracting(GoalAnalysis.Item::categorySlug).containsExactly("desks", "chairs");
+		assertThat(analysis.budget()).isEqualByComparingTo("60.00");
+		assertThat(analysis.items()).extracting(GoalAnalysis.Item::categorySlug).containsExactly("scarves", "caps");
 	}
 
 	@Test
 	void detectsPreferredBrandsAndPremiumIntent() {
-		GoalAnalysis analysis = interpret("A high-end Ergolift standing desk for my office, budget $900");
+		GoalAnalysis analysis = interpret("A luxury Michael Kors watch for the office, budget $300");
 
-		assertThat(analysis.preferredBrands()).containsExactly("Ergolift");
+		assertThat(analysis.preferredBrands()).containsExactly("Michael Kors");
 		assertThat(analysis.quality()).isEqualTo(Quality.PREMIUM);
-		assertThat(analysis.matchedTerms()).contains("Ergolift", "standing desk", "$900");
+		assertThat(analysis.matchedTerms()).contains("Michael Kors", "watch", "$300");
 	}
 
 	@Test
@@ -114,11 +115,11 @@ class RuleBasedGoalInterpreterTest {
 
 	@Test
 	void parsesCommonBudgetFormats() {
-		assertThat(budget("budget is $2,499.99")).isEqualByComparingTo("2499.99");
-		assertThat(budget("spend up to 750")).isEqualByComparingTo("750");
-		assertThat(budget("under 2k")).isEqualByComparingTo("2000");
+		assertThat(budget("budget is $249.99")).isEqualByComparingTo("249.99");
+		assertThat(budget("spend up to 150")).isEqualByComparingTo("150");
+		assertThat(budget("under 1k")).isEqualByComparingTo("1000");
 		assertThat(budget("$1.5k total")).isEqualByComparingTo("1500");
-		assertThat(budget("a 27 inch monitor")).isNull();
+		assertThat(budget("waist 32 jeans")).isNull();
 	}
 
 	private static java.math.BigDecimal budget(String text) {
@@ -126,21 +127,29 @@ class RuleBasedGoalInterpreterTest {
 	}
 
 	private static InterpreterVocabulary vocabulary() {
-		TemplateTerms homeOffice = new TemplateTerms("home-office", "Professional home office",
-				List.of("home office", "work from home", "office"),
-				List.of(item("desks", true, true), item("chairs", true, true), item("monitors", true, true),
-						item("keyboards", true, true), item("mice", true, true), item("desk-lamps", false, true),
-						item("webcams", false, true), item("monitor-arms", false, false)),
-				List.of("ergonomic", "streaming", "compact", "wireless"));
-		TemplateTerms gaming = new TemplateTerms("gaming-setup", "Gaming setup", List.of("gaming", "gamer"),
-				List.of(item("desktops", true, true), item("monitors", true, true)), List.of("gaming", "streaming"));
-		TemplateTerms photo = new TemplateTerms("photo-studio", "Photography studio",
-				List.of("photography", "photo"),
-				List.of(item("cameras", true, true), item("lenses", true, true), item("studio-lighting", true, true)),
-				List.of("beginner", "pro"));
+		List<String> men = List.of("men", "him", "guy");
+		List<String> women = List.of("women", "her", "girl");
+		TemplateTerms weekendMen = template("weekend-casual-men", "Weekend casual (men)", List.of("weekend", "casual"), men,
+				List.of(item("men-tshirts", true, true), item("men-jeans", true, true), item("men-jackets", false, true),
+						item("sunglasses", false, true), item("watches", false, false)));
+		TemplateTerms officeMen = template("office-men", "Office ready (men)", List.of("office", "work"), men,
+				List.of(item("men-shirts", true, true), item("men-trousers", true, true), item("belts", false, true)));
+		TemplateTerms officeWomen = template("office-women", "Office ready (women)", List.of("office", "work"), women,
+				List.of(item("women-tops", true, true), item("women-trousers", true, true),
+						item("women-jackets", false, true)));
+		TemplateTerms partyWomen = template("party-women", "Party night (women)", List.of("party", "night out"), women,
+				List.of(item("women-dresses", true, true), item("handbags", false, true), item("jewelry", false, true)));
 		Map<String, List<String>> phrases = new LinkedHashMap<>(VocabularyLoader.SYNONYMS);
-		return new InterpreterVocabulary(List.of(homeOffice, gaming, photo), phrases, Set.of("Ergolift", "Vantix"),
-				Set.of("ergonomic", "streaming", "compact", "wireless", "gaming", "beginner", "pro"));
+		return new InterpreterVocabulary(List.of(weekendMen, officeMen, officeWomen, partyWomen), phrases,
+				Set.of("Michael Kors", "Levi's", "Zara"), Set.of("casual", "streetwear", "formal", "minimalist", "party-wear"));
+	}
+
+	private static TemplateTerms template(String slug, String title, List<String> occasion, List<String> wardrobe,
+			List<TemplateItem> items) {
+		List<String> keywords = new ArrayList<>(occasion);
+		keywords.addAll(wardrobe);
+		return new TemplateTerms(slug, title, keywords, items,
+				List.of("casual", "streetwear", "formal", "minimalist", "party-wear"));
 	}
 
 	private static TemplateItem item(String slug, boolean required, boolean selected) {

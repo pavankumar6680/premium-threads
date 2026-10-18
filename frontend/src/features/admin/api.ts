@@ -20,7 +20,12 @@ export type AdminProductRow = {
   ratingCount: number;
   categorySlug: string;
   categoryName: string;
+  /** total over active variants */
   stock: number;
+  variantCount: number;
+  compareAtPrice: number | null;
+  gender: 'MEN' | 'WOMEN' | 'UNISEX';
+  featured: boolean;
   updatedAt: string;
 };
 

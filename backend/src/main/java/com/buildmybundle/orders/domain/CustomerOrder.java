@@ -108,9 +108,11 @@ public class CustomerOrder {
 		updatedAt = Instant.now();
 	}
 
-	public void addItem(Long productId, String sku, String name, String brand, BigDecimal unitPrice, int quantity) {
+	/** Adds a line for one variant; size and color are kept as a snapshot next to the variant reference. */
+	public void addItem(Long productId, Long variantId, String sku, String size, String color, String name, String brand,
+			BigDecimal unitPrice, int quantity) {
 		BigDecimal lineTotal = PricingPolicy.money(unitPrice.multiply(BigDecimal.valueOf(quantity)));
-		items.add(new OrderItem(this, productId, sku, name, brand, unitPrice, quantity, lineTotal));
+		items.add(new OrderItem(this, productId, variantId, sku, size, color, name, brand, unitPrice, quantity, lineTotal));
 	}
 
 	public BigDecimal itemsSubtotal() {
@@ -159,9 +161,11 @@ public class CustomerOrder {
 			.with("status", status.name());
 	}
 
-	/** Product id → quantity, e.g. to reserve or release stock. */
+	/** Variant id → quantity, e.g. to reserve or release stock. */
 	public Map<Long, Integer> quantities() {
-		return items.stream().collect(Collectors.toMap(OrderItem::getProductId, OrderItem::getQuantity, Integer::sum));
+		return items.stream()
+			.filter(i -> i.getVariantId() != null)
+			.collect(Collectors.toMap(OrderItem::getVariantId, OrderItem::getQuantity, Integer::sum));
 	}
 
 	public Long getId() {

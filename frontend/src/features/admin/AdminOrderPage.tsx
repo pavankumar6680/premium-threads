@@ -81,10 +81,13 @@ export function AdminOrderPage() {
         <Card title="Items" className="lg:col-span-2">
           <ul className="divide-y divide-slate-100">
             {order.items.map((item) => (
-              <li key={item.productId} className="flex items-center justify-between gap-4 py-3 text-sm">
+              <li key={item.variantId ?? item.productId} className="flex items-center justify-between gap-4 py-3 text-sm">
                 <div className="min-w-0">
                   <Link to={`/admin/products/${item.productId}`} className="font-medium text-slate-900 hover:underline">{item.name}</Link>
-                  <p className="text-xs text-slate-500">{item.sku} · {item.quantity} × {formatMoney(item.unitPrice, order.currency)}</p>
+                  <p className="text-xs text-slate-500">
+                    {[item.color, item.size].filter(Boolean).join(' · ')}{(item.color || item.size) && ' · '}
+                    {item.sku} · {item.quantity} × {formatMoney(item.unitPrice, order.currency)}
+                  </p>
                 </div>
                 <span className="font-medium text-slate-900">{formatMoney(item.lineTotal, order.currency)}</span>
               </li>

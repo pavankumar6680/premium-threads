@@ -63,20 +63,21 @@ public abstract class IntegrationTest {
 	}
 
 	/**
-	 * Creates an active product with its own stock in a dedicated test category, so tests never change the
-	 * price ranges or counts of the seeded catalog categories that other tests assert on.
+	 * Creates an active product sold in a single option ("One size"), with its own stock, in a dedicated test
+	 * category, so tests never change the price ranges or counts of the seeded catalog categories.
 	 */
 	protected long createProduct(String name, String price, int stock) {
 		jdbc.sql("""
-				INSERT INTO categories (parent_id, slug, name, sort_order)
-				SELECT id, 'test-items', 'Test items', 99 FROM categories WHERE slug = 'home-office'
+				INSERT INTO categories (parent_id, slug, name, sort_order, outfit_slot, size_scale)
+				SELECT id, 'test-items', 'Test items', 99, 'ACCESSORY', 'ONE_SIZE' FROM categories WHERE slug = 'accessories'
 				ON CONFLICT (slug) DO NOTHING
 				""").update();
+		jdbc.sql("INSERT INTO brands (slug, name) VALUES ('testbrand', 'Testbrand') ON CONFLICT (slug) DO NOTHING").update();
 		String suffix = UUID.randomUUID().toString().substring(0, 8);
 		long id = jdbc.sql("""
-				INSERT INTO products (category_id, sku, slug, name, brand, description, price)
-				SELECT id, :sku, :slug, :name, 'Testbrand', 'Integration test product', :price
-				FROM categories WHERE slug = 'test-items'
+				INSERT INTO products (category_id, brand_id, sku, slug, name, brand, description, price)
+				SELECT c.id, b.id, :sku, :slug, :name, b.name, 'Integration test product', :price
+				FROM categories c, brands b WHERE c.slug = 'test-items' AND b.slug = 'testbrand'
 				RETURNING id
 				""")
 			.param("sku", "TEST-" + suffix)
@@ -85,11 +86,37 @@ public abstract class IntegrationTest {
 			.param("price", new BigDecimal(price))
 			.query(Long.class)
 			.single();
-		jdbc.sql("INSERT INTO inventory (product_id, quantity_on_hand) VALUES (:id, :qty)")
-			.param("id", id)
+		long variantId = jdbc.sql("""
+				INSERT INTO product_variants (product_id, sku, size, color) VALUES (:id, :sku, 'One size', 'Standard')
+				RETURNING id
+				""").param("id", id).param("sku", "TEST-" + suffix).query(Long.class).single();
+		jdbc.sql("INSERT INTO variant_stock (variant_id, quantity_on_hand) VALUES (:id, :qty)")
+			.param("id", variantId)
 			.param("qty", stock)
 			.update();
 		return id;
+	}
+
+	/** Adds a size × color variant with its own stock to a product; returns the variant id. */
+	protected long addVariant(long productId, String size, String color, int stock) {
+		long variantId = jdbc.sql("""
+				INSERT INTO product_variants (product_id, sku, size, color, color_hex)
+				SELECT id, sku || '-' || :size || '-' || :color, :size, :color, '#336699' FROM products WHERE id = :id
+				RETURNING id
+				""").param("id", productId).param("size", size).param("color", color).query(Long.class).single();
+		jdbc.sql("INSERT INTO variant_stock (variant_id, quantity_on_hand) VALUES (:id, :qty)")
+			.param("id", variantId)
+			.param("qty", stock)
+			.update();
+		return variantId;
+	}
+
+	/** The single variant of a product created with {@link #createProduct}. */
+	protected long variantOf(long productId) {
+		return jdbc.sql("SELECT id FROM product_variants WHERE product_id = :id ORDER BY id LIMIT 1")
+			.param("id", productId)
+			.query(Long.class)
+			.single();
 	}
 
 	/** Puts {@code quantity} units in the customer's cart and checks out; returns the order id. */
@@ -105,17 +132,22 @@ public abstract class IntegrationTest {
 			.andExpect(status().isCreated()), "$.id");
 	}
 
+	/** Total stock of a product (all variants). */
 	protected int stockOf(long productId) {
-		return jdbc.sql("SELECT quantity_on_hand FROM inventory WHERE product_id = :id")
+		return jdbc.sql("""
+				SELECT coalesce(sum(s.quantity_on_hand), 0) FROM product_variants v
+				JOIN variant_stock s ON s.variant_id = v.id WHERE v.product_id = :id
+				""")
 			.param("id", productId)
 			.query(Integer.class)
 			.single();
 	}
 
+	/** Sets the stock of a single-variant product. */
 	protected void setStock(long productId, int quantity) {
-		jdbc.sql("UPDATE inventory SET quantity_on_hand = :qty WHERE product_id = :id")
+		jdbc.sql("UPDATE variant_stock SET quantity_on_hand = :qty WHERE variant_id = :id")
 			.param("qty", quantity)
-			.param("id", productId)
+			.param("id", variantOf(productId))
 			.update();
 	}
 

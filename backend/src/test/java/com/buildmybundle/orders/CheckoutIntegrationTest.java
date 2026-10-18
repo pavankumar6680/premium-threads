@@ -138,7 +138,7 @@ class CheckoutIntegrationTest extends IntegrationTest {
 
 		checkout(customer, newKey()).andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("INSUFFICIENT_STOCK"))
-			.andExpect(jsonPath("$.shortages[0].productId").value(chair))
+			.andExpect(jsonPath("$.shortages[0].variantId").value(variantOf(chair)))
 			.andExpect(jsonPath("$.shortages[0].available").value(1));
 
 		assertThat(stockOf(lamp)).as("lamp reservation rolled back").isEqualTo(5);

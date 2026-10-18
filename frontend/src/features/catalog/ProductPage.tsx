@@ -43,9 +43,20 @@ export function ProductPage() {
 function ProductView({ detail }: { detail: ProductDetail }) {
   const [quantity, setQuantity] = useState(1);
   const { addToCart, isPending: adding } = useAddToCart();
-  const { product, department, attributes, description, images, related } = detail;
-  const purchasable = product.active && product.availableQuantity > 0;
-  const maxQuantity = Math.max(1, Math.min(product.availableQuantity, MAX_PER_ORDER));
+  const { product, department, attributes, description, images, related, variants } = detail;
+
+  // size × color selection; products sold in a single option need no choice
+  const colors = [...new Map(variants.map((v) => [v.color, v])).values()];
+  const sizes = [...new Set(variants.map((v) => v.size))];
+  const singleOption = variants.length <= 1;
+  const [color, setColor] = useState(
+    () => (colors.find((c) => variants.some((v) => v.color === c.color && v.availableQuantity > 0)) ?? colors[0])?.color,
+  );
+  const [size, setSize] = useState<string | null>(singleOption || sizes.length === 1 ? (sizes[0] ?? null) : null);
+  const variant = variants.find((v) => v.color === color && v.size === size);
+  const stock = singleOption ? (variants[0]?.availableQuantity ?? product.availableQuantity) : (variant?.availableQuantity ?? 0);
+  const purchasable = product.active && (singleOption || !!variant) && stock > 0;
+  const maxQuantity = Math.max(1, Math.min(stock, MAX_PER_ORDER));
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
@@ -74,14 +85,68 @@ function ProductView({ detail }: { detail: ProductDetail }) {
             </span>
           </div>
           <p className="mt-5 text-3xl font-bold">{formatMoney(product.price)}</p>
-          <StockBadge available={product.availableQuantity} active={product.active} className="mt-1 text-sm" />
+          <StockBadge available={singleOption || variant ? stock : product.availableQuantity} active={product.active} className="mt-1 text-sm" />
           <p className="mt-5 leading-relaxed text-slate-700">{description}</p>
+
+          {!singleOption && (
+            <div className="mt-6 space-y-4">
+              {colors.length > 1 || colors[0]?.color !== 'Standard' ? (
+                <fieldset>
+                  <legend className="text-sm font-semibold">Color: <span className="font-normal text-slate-600">{color}</span></legend>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {colors.map((c) => (
+                      <button
+                        key={c.color}
+                        type="button"
+                        aria-pressed={c.color === color}
+                        aria-label={c.color}
+                        title={c.color}
+                        onClick={() => setColor(c.color)}
+                        className={`size-9 rounded-full ring-2 ring-offset-2 ${c.color === color ? 'ring-slate-900' : 'ring-transparent hover:ring-slate-300'}`}
+                        style={{ backgroundColor: c.colorHex ?? '#ddd' }}
+                      />
+                    ))}
+                  </div>
+                </fieldset>
+              ) : null}
+              {sizes.length > 1 && (
+                <fieldset>
+                  <legend className="text-sm font-semibold">Size{size ? `: ${size}` : ''}</legend>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {sizes.map((s) => {
+                      const option = variants.find((v) => v.color === color && v.size === s);
+                      const soldOut = !option || option.availableQuantity === 0;
+                      return (
+                        <button
+                          key={s}
+                          type="button"
+                          aria-pressed={s === size}
+                          disabled={soldOut}
+                          onClick={() => setSize(s)}
+                          className={`h-10 min-w-12 rounded-lg border px-3 text-sm font-medium ${
+                            s === size ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white hover:border-slate-500'
+                          } disabled:cursor-not-allowed disabled:text-slate-300 disabled:line-through`}
+                        >
+                          {s}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              )}
+            </div>
+          )}
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
             {purchasable && <QuantityStepper value={quantity} max={maxQuantity} onChange={setQuantity} />}
-            <Button size="lg" disabled={!purchasable} isLoading={adding} onClick={() => addToCart(product.id, quantity, product.name)}>
+            <Button
+              size="lg"
+              disabled={!purchasable}
+              isLoading={adding}
+              onClick={() => addToCart(product.id, quantity, product.name, singleOption ? variants[0]?.id : variant?.id)}
+            >
               <ShoppingCart className="size-5" aria-hidden="true" />
-              {purchasable ? 'Add to cart' : 'Currently unavailable'}
+              {!product.active ? 'Currently unavailable' : !singleOption && !size ? 'Choose a size' : stock > 0 ? 'Add to cart' : 'Sold out in this size'}
             </Button>
             <WishlistButton productId={product.id} productName={product.name} withLabel />
           </div>
@@ -108,6 +173,25 @@ function ProductView({ detail }: { detail: ProductDetail }) {
               <dd className="font-mono text-slate-900 sm:col-span-2">{product.sku}</dd>
             </div>
           </dl>
+        </section>
+      )}
+
+      {(detail.material || detail.care) && (
+        <section className="mt-12" aria-labelledby="care">
+          <h2 id="care" className="text-xl font-bold">Material and care</h2>
+          {detail.material && <p className="mt-3 text-slate-700">{detail.material}</p>}
+          {detail.care && <p className="mt-1 text-slate-600">{detail.care}</p>}
+        </section>
+      )}
+
+      {detail.completeTheLook.length > 0 && (
+        <section className="mt-12" aria-labelledby="look">
+          <h2 id="look" className="text-xl font-bold">Complete the look</h2>
+          <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
+            {detail.completeTheLook.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
         </section>
       )}
 

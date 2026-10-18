@@ -4,14 +4,17 @@ import java.util.List;
 
 import jakarta.validation.Valid;
 
+import com.buildmybundle.catalog.admin.AdminCatalogModels.AdminBrand;
 import com.buildmybundle.catalog.admin.AdminCatalogModels.AdminCategory;
 import com.buildmybundle.catalog.admin.AdminCatalogModels.AdminProduct;
 import com.buildmybundle.catalog.admin.AdminCatalogModels.AdminProductRow;
 import com.buildmybundle.catalog.admin.AdminCatalogModels.AttributeRequest;
+import com.buildmybundle.catalog.admin.AdminCatalogModels.BrandRequest;
 import com.buildmybundle.catalog.admin.AdminCatalogModels.CategoryRequest;
 import com.buildmybundle.catalog.admin.AdminCatalogModels.ProductRequest;
 import com.buildmybundle.catalog.admin.AdminCatalogModels.StatusRequest;
 import com.buildmybundle.catalog.admin.AdminCatalogModels.StockRequest;
+import com.buildmybundle.catalog.admin.BrandAdminService;
 import com.buildmybundle.catalog.admin.CategoryAdminService;
 import com.buildmybundle.catalog.admin.ProductAdminService;
 import com.buildmybundle.catalog.admin.ProductAdminService.Sort;
@@ -42,10 +45,12 @@ class AdminCatalogController {
 
 	private final ProductAdminService products;
 	private final CategoryAdminService categories;
+	private final BrandAdminService brands;
 
-	AdminCatalogController(ProductAdminService products, CategoryAdminService categories) {
+	AdminCatalogController(ProductAdminService products, CategoryAdminService categories, BrandAdminService brands) {
 		this.products = products;
 		this.categories = categories;
+		this.brands = brands;
 	}
 
 	@Operation(summary = "Products for administration (any status), with stock",
@@ -78,7 +83,13 @@ class AdminCatalogController {
 		return products.update(id, request);
 	}
 
-	@Operation(summary = "Set the stock level")
+	@Operation(summary = "Set the stock of a variant (size × color)")
+	@PutMapping("/variants/{variantId}/stock")
+	AdminProduct setVariantStock(@PathVariable Long variantId, @Valid @RequestBody StockRequest request) {
+		return products.setVariantStock(variantId, request.quantity());
+	}
+
+	@Operation(summary = "Set the stock of a product sold in a single option")
 	@PutMapping("/products/{id}/stock")
 	AdminProduct setStock(@PathVariable Long id, @Valid @RequestBody StockRequest request) {
 		return products.setStock(id, request.quantity());
@@ -88,6 +99,25 @@ class AdminCatalogController {
 	@PatchMapping("/products/{id}/status")
 	AdminProduct setStatus(@PathVariable Long id, @Valid @RequestBody StatusRequest request) {
 		return products.setActive(id, request.active());
+	}
+
+	@Operation(summary = "All brands (active and retired) with product counts")
+	@GetMapping("/brands")
+	List<AdminBrand> brands() {
+		return brands.list();
+	}
+
+	@Operation(summary = "Create a brand")
+	@PostMapping("/brands")
+	@ResponseStatus(HttpStatus.CREATED)
+	AdminBrand createBrand(@Valid @RequestBody BrandRequest request) {
+		return brands.create(request);
+	}
+
+	@Operation(summary = "Update a brand (renaming updates its products)")
+	@PutMapping("/brands/{id}")
+	AdminBrand updateBrand(@PathVariable Long id, @Valid @RequestBody BrandRequest request) {
+		return brands.update(id, request);
 	}
 
 	@Operation(summary = "All categories with their attribute definitions")

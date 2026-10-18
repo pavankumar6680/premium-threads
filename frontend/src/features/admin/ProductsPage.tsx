@@ -162,28 +162,35 @@ function ProductRow({ product }: { product: AdminProductRow }) {
       <td className={clsx(td, 'whitespace-nowrap')}>{product.categoryName}</td>
       <td className={clsx(td, 'whitespace-nowrap text-right font-medium')}>{formatMoney(product.price)}</td>
       <td className={td}>
-        <form onSubmit={saveStock} className="flex items-center gap-1.5">
-          <input
-            type="number"
-            min={0}
-            aria-label={`Stock for ${product.name}`}
-            value={stock}
-            onChange={(e) => setStockValue(e.target.value)}
-            className={clsx(
-              'h-9 w-20 rounded-lg border px-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-100',
-              product.stock <= LOW_STOCK ? 'border-amber-400' : 'border-slate-300',
-            )}
-          />
-          {dirty ? (
-            <Button type="submit" size="sm" variant="secondary" isLoading={setStock.isPending} aria-label={`Save stock for ${product.name}`}>
-              <Check className="size-4" aria-hidden="true" />
-            </Button>
-          ) : product.stock === 0 ? (
-            <Badge tone="red">Sold out</Badge>
-          ) : product.stock <= LOW_STOCK ? (
-            <Badge tone="amber">Low</Badge>
-          ) : null}
-        </form>
+        {product.variantCount > 1 ? (
+          <Link to={`/admin/products/${product.id}`} className="inline-flex items-center gap-2 whitespace-nowrap hover:underline">
+            <span className={clsx('font-medium', product.stock <= LOW_STOCK && 'text-amber-700')}>{product.stock}</span>
+            <span className="text-xs text-slate-500">in {product.variantCount} sizes/colors</span>
+          </Link>
+        ) : (
+          <form onSubmit={saveStock} className="flex items-center gap-1.5">
+            <input
+              type="number"
+              min={0}
+              aria-label={`Stock for ${product.name}`}
+              value={stock}
+              onChange={(e) => setStockValue(e.target.value)}
+              className={clsx(
+                'h-9 w-20 rounded-lg border px-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-100',
+                product.stock <= LOW_STOCK ? 'border-amber-400' : 'border-slate-300',
+              )}
+            />
+            {dirty ? (
+              <Button type="submit" size="sm" variant="secondary" isLoading={setStock.isPending} aria-label={`Save stock for ${product.name}`}>
+                <Check className="size-4" aria-hidden="true" />
+              </Button>
+            ) : product.stock === 0 ? (
+              <Badge tone="red">Sold out</Badge>
+            ) : product.stock <= LOW_STOCK ? (
+              <Badge tone="amber">Low</Badge>
+            ) : null}
+          </form>
+        )}
       </td>
       <td className={td}>
         <Toggle

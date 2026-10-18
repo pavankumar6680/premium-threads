@@ -27,6 +27,9 @@ public class CartItem {
 	@Column(name = "product_id", nullable = false)
 	private Long productId;
 
+	@Column(name = "variant_id", nullable = false)
+	private Long variantId;
+
 	@Column(nullable = false)
 	private int quantity;
 
@@ -36,9 +39,10 @@ public class CartItem {
 	protected CartItem() {
 	}
 
-	CartItem(Cart cart, Long productId, int quantity) {
+	CartItem(Cart cart, Long productId, Long variantId, int quantity) {
 		this.cart = cart;
 		this.productId = productId;
+		this.variantId = variantId;
 		this.quantity = quantity;
 		this.addedAt = Instant.now();
 	}
@@ -49,6 +53,10 @@ public class CartItem {
 
 	public Long getProductId() {
 		return productId;
+	}
+
+	public Long getVariantId() {
+		return variantId;
 	}
 
 	public int getQuantity() {

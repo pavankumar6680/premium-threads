@@ -1,7 +1,7 @@
 import { screen, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
-import { ada, emptyCart, pageOf, product } from '../../test/fixtures';
+import { ada, emptyCart, pageOf, product, card } from '../../test/fixtures';
 import { location, renderApp } from '../../test/renderApp';
 import { apiPath, server } from '../../test/server';
 import type { CategoryNode, ProductDetail } from './types';
@@ -17,13 +17,21 @@ const categories: CategoryNode[] = [
 ];
 
 const detail: ProductDetail = {
-  product: vantix,
+  product: card(vantix),
   description: 'A sharp 27-inch monitor.',
   department: { slug: 'computers', name: 'Computers & Accessories' },
+  brandInfo: { slug: 'vantix', name: 'Vantix', description: '' },
+  sizeScale: 'ONE_SIZE',
+  material: null,
+  care: null,
+  variants: [{ id: 101, sku: 'MON-002', size: 'One size', color: 'Standard', colorHex: null, availableQuantity: 45 }],
+  styles: [],
+  occasions: [],
   attributes: [{ key: 'inputs', label: 'Inputs', type: 'LIST', unit: null, values: ['HDMI', 'DisplayPort'] }],
   tags: ['home-office'],
   images: [],
   related: [],
+  completeTheLook: [],
 };
 
 describe('shop', () => {
@@ -96,7 +104,7 @@ describe('shop', () => {
     await user.click(screen.getByRole('button', { name: /add to cart/i }));
 
     expect(await screen.findByText('Added Vantix 27 QHD Monitor to your cart')).toBeInTheDocument();
-    expect(posted).toEqual({ productId: 10, quantity: 2 });
+    expect(posted).toEqual({ productId: 10, variantId: 101, quantity: 2 });
     expect(screen.getByRole('link', { name: 'Cart, 2 items' })).toBeInTheDocument();
   });
 });

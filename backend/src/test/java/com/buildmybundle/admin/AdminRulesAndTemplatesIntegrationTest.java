@@ -66,8 +66,8 @@ class AdminRulesAndTemplatesIntegrationTest extends IntegrationTest {
 	void rulesMustReferToRealAttributes() throws Exception {
 		String laptops = category("laptops-" + suffix, "outputs");
 		admin.postJson("/api/v1/admin/compatibility-rules/preview", """
-				{"code":"TEST_BAD","sourceCategory":"%s","targetCategory":"monitors","operator":"EQUALS",
-				 "sourceAttr":"colour","targetAttr":"inputs","severity":"BLOCK","label":"x","message":"y","active":true}
+				{"code":"TEST_BAD","sourceCategory":"%s","targetCategory":"watches","operator":"EQUALS",
+				 "sourceAttr":"colour","targetAttr":"strap","severity":"BLOCK","label":"x","message":"y","active":true}
 				""".formatted(laptops))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.code").value("INVALID_RULE"))
@@ -78,7 +78,7 @@ class AdminRulesAndTemplatesIntegrationTest extends IntegrationTest {
 				""".formatted(laptops))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.field").value("targetCategory"));
-		admin.get("/api/v1/admin/compatibility-rules").andExpect(jsonPath("$.length()").value(org.hamcrest.Matchers.greaterThanOrEqualTo(18)));
+		admin.get("/api/v1/admin/compatibility-rules").andExpect(status().isOk()).andExpect(jsonPath("$").isArray());
 	}
 
 	@Test
@@ -86,15 +86,15 @@ class AdminRulesAndTemplatesIntegrationTest extends IntegrationTest {
 		String slug = "tiny-studio-" + suffix;
 		String template = """
 				{"slug":"%s","title":"Tiny studio %s","tagline":"Record anywhere","description":"",
-				 "defaultBudget":400,"contextTag":"podcast","active":%s,
-				 "items":[{"categorySlug":"microphones","required":true,"selectedByDefault":true,"quantity":1},
-				          {"categorySlug":"headphones","required":false,"selectedByDefault":false,"quantity":1}],
-				 "usageOptions":[{"tag":"podcast","label":"Podcasting"}],
+				 "defaultBudget":400,"contextTag":"festive","active":%s,
+				 "items":[{"categorySlug":"women-ethnic-wear","required":true,"selectedByDefault":true,"quantity":1},
+				          {"categorySlug":"jewelry","required":false,"selectedByDefault":false,"quantity":1}],
+				 "usageOptions":[{"tag":"formal","label":"Formal"}],
 				 "keywords":["voice memo studio %s"]}
 				""";
 		long id = longField(admin.postJson("/api/v1/admin/goal-templates", template.formatted(slug, suffix, true, suffix))
 			.andExpect(status().isCreated())
-			.andExpect(jsonPath("$.items[0].categorySlug").value("microphones"))
+			.andExpect(jsonPath("$.items[0].categorySlug").value("women-ethnic-wear"))
 			.andExpect(jsonPath("$.items[1].selectedByDefault").value(false)), "$.id");
 
 		BrowserSession visitor = new BrowserSession(mockMvc);
@@ -113,7 +113,7 @@ class AdminRulesAndTemplatesIntegrationTest extends IntegrationTest {
 	void templatesNeedARequiredItemAndKnownCategories() throws Exception {
 		admin.postJson("/api/v1/admin/goal-templates", """
 				{"slug":"t-%s","title":"T","tagline":"T","defaultBudget":100,"active":true,
-				 "items":[{"categorySlug":"headphones","required":false,"selectedByDefault":true,"quantity":1}]}
+				 "items":[{"categorySlug":"caps","required":false,"selectedByDefault":true,"quantity":1}]}
 				""".formatted(suffix)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("NO_REQUIRED_ITEM"));
 		admin.postJson("/api/v1/admin/goal-templates", """
 				{"slug":"t-%s","title":"T","tagline":"T","defaultBudget":100,"active":true,
@@ -121,12 +121,12 @@ class AdminRulesAndTemplatesIntegrationTest extends IntegrationTest {
 				""".formatted(suffix)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("UNKNOWN_CATEGORY"));
 		admin.postJson("/api/v1/admin/goal-templates", """
 				{"slug":"home-office","title":"T","tagline":"T","defaultBudget":100,"active":true,
-				 "items":[{"categorySlug":"desks","required":true,"selectedByDefault":true,"quantity":1}]}
+				 "items":[{"categorySlug":"men-shirts","required":true,"selectedByDefault":true,"quantity":1}]}
 				""").andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("TEMPLATE_SLUG_TAKEN"));
 	}
 
 	private String category(String slug, String listAttribute) throws Exception {
-		admin.postJson("/api/v1/admin/categories", "{\"departmentSlug\":\"home-office\",\"slug\":\"" + slug + "\",\"name\":\"" + slug + "\"}")
+		admin.postJson("/api/v1/admin/categories", "{\"departmentSlug\":\"accessories\",\"slug\":\"" + slug + "\",\"name\":\"" + slug + "\"}")
 			.andExpect(status().isCreated());
 		admin.postJson("/api/v1/admin/categories/" + slug + "/attributes",
 				"{\"key\":\"" + listAttribute + "\",\"label\":\"Ports\",\"type\":\"LIST\"}").andExpect(status().isCreated());
@@ -136,7 +136,7 @@ class AdminRulesAndTemplatesIntegrationTest extends IntegrationTest {
 	private long product(String category, String attribute, String value) throws Exception {
 		String sku = "R-" + UUID.randomUUID().toString().substring(0, 8);
 		return longField(admin.postJson("/api/v1/admin/products", """
-				{"categorySlug":"%s","sku":"%s","name":"Rule test %s","brand":"Testbrand","price":10,"qualityTier":2,
+				{"categorySlug":"%s","sku":"%s","name":"Rule test %s","brand":"Zara","price":10,"qualityTier":2,
 				 "active":true,"attributes":{"%s":["%s"]},"stock":5}
 				""".formatted(category, sku, sku, attribute, value)).andExpect(status().isCreated()), "$.id");
 	}

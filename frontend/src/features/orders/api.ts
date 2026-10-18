@@ -7,10 +7,14 @@ export type OrderStatus = 'PAID' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
 
 export type OrderItem = {
   productId: number;
+  /** null only for order lines placed before products had sizes and colors */
+  variantId: number | null;
   slug: string | null;
   sku: string;
   name: string;
   brand: string;
+  size: string | null;
+  color: string | null;
   unitPrice: number;
   quantity: number;
   lineTotal: number;
